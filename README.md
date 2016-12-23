@@ -1,6 +1,8 @@
 # DeepDarmin
 Chess engine built in javascript, I may migrate this over to NPM for v1. 
 
+Play against it here: http://alexeidarmin.com/chess/alpha/
+
 
 I'm developing chess AI. Currently it's closer to a bot than AI, but once the ground work is setup I plan to give it the ability to update it's own decision making criteria based on experiences / performance.
 
