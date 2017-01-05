@@ -49,7 +49,7 @@ function getMaterialDelta (fen) {
 function getPawnPositionDelta (fen) {
 
   const arr = fen.split('/')
-  const val = 0.005
+  const val = 0.001
   let score = 0
 
   for (let r = 1; r < 7; ++r){                // rows
@@ -66,6 +66,9 @@ function getPawnPositionDelta (fen) {
 }
 
 
+function getSquareFromMove(square) {
+  return square.substring(square.length-3, square.length-1)
+}
 
 /*  Takes a fen string and computes the positional difference from black and white.
  @param   {String}  valid fen string

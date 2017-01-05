@@ -31,6 +31,65 @@ const makeMove = function () {
 
 
 
+
+
+const staticCaptureExchange = (symGame, square, color, move) => {
+
+  // Filter moves that capture on the requested square
+  let moves = symGame.moves().filter((move) => {
+
+    const isCapture = move.indexOf('x') > -1
+    const isSquare = move.slice(-2) === square
+
+    return isCapture && isSquare
+  })
+  nodesVisited += moves.length
+
+  // terminal node
+  if (moves.length === 0) {
+    return new Node(symGame.fen(), move, getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame), null)
+  }
+
+
+  let responses = {}
+
+  for (let i = 0, len = moves.length; i < len; ++i) {
+    symGame.move(moves[i])
+    responses[moves[i]] = staticCaptureExchange(symGame, square, color, moves[i])
+    symGame.undo()
+  }
+
+  // find best case scenario down the capture route
+  let bestDelta
+  if (symGame.turn() === 'b') {
+    bestDelta = -Infinity
+
+    $.each(responses, function(move, response) {
+      if (response.delta > bestDelta) bestDelta = response.delta
+    });
+  } else {
+    bestDelta = Infinity
+    $.each(responses, function(move, response) {
+      if (response.delta < bestDelta) bestDelta = response.delta
+    });
+  }
+
+  // The player should consider doing nothing if all captures end badly
+  const currDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame)
+  if (color === 2 && currDelta > bestDelta) {
+    return new Node(symGame.fen(), move, currDelta, responses)
+  } else if (color === 1 && currDelta < bestDelta) {
+    return new Node(symGame.fen(), move, currDelta, responses)
+  }
+
+  return new Node(symGame.fen(), move, bestDelta, responses)
+
+
+}
+
+
+
+
 // Applies every possible capture at position 'square'. Returns the optimal case scenario for each player.
 // color 1 = black, color 2 = white
 const dynamicCaptureExchange = (symGame, square, color, move) => {
@@ -46,20 +105,32 @@ const dynamicCaptureExchange = (symGame, square, color, move) => {
     moves = efficientTrades
   }
 
-  // terminal node
-  if (moves.length === 0 || maxCaptureDepth === 4) {
-    maxCaptureDepth--
-    return new Node(symGame.fen(), move, getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame), null)
-  }
-
-
   let responses = {}
 
-  for (let i = 0, len = moves.length; i < len; ++i) {
-    symGame.move(moves[i])
-    responses[moves[i]] = dynamicCaptureExchange(symGame, square, color, moves[i])
-    symGame.undo()
+  // terminal node
+  if (moves.length === 0) {
+    maxCaptureDepth--
+    return new Node(symGame.fen(), move, getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame), null)
+  } else if (maxCaptureDepth >= 4) {
+    /* switch to static capture exchanges */
+    for (let i = 0, len = moves.length; i < len; ++i) {
+      let currSquare = move.slice(-2)
+      symGame.move(moves[i])
+      responses[moves[i]] = staticCaptureExchange(symGame, currSquare, color, moves[i])
+      symGame.undo()
+    }
+  } else {
+    /* continue executing dynamic static exchange */
+    for (let i = 0, len = moves.length; i < len; ++i) {
+      symGame.move(moves[i])
+      responses[moves[i]] = dynamicCaptureExchange(symGame, square, color, moves[i])
+      symGame.undo()
+    }
   }
+
+
+
+
 
   let bestDelta
   if (symGame.turn() === 'b') {
@@ -74,9 +145,21 @@ const dynamicCaptureExchange = (symGame, square, color, move) => {
       if (response.delta < bestDelta) bestDelta = response.delta
     });
   }
+
   maxCaptureDepth--
+
+  const currDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame)
+  if (color === 2 && currDelta > bestDelta) {
+    return new Node(symGame.fen(), move, currDelta, responses)
+  } else if (color === 1 && currDelta < bestDelta) {
+    return new Node(symGame.fen(), move, currDelta, responses)
+  }
+
   return new Node(symGame.fen(), move, bestDelta, responses)
 }
+
+
+
 
 
 const buildGameTree = (symGame, depth, parentWorstDelta, move = '') => {
@@ -89,11 +172,17 @@ const buildGameTree = (symGame, depth, parentWorstDelta, move = '') => {
   const responses = {}
   let branchWorstDelta = 100
 
-  let captures = moves.filter((move) => move.indexOf('x') > -1)
-  console.log('filter!', captures)
-  captures = filterEfficientCaptures(captures, symGame)
+  const captures = moves.filter((move) => move.indexOf('x') > -1)
 
-  console.log('captures: ', captures, depth)
+  // captures = filterEfficientCaptures(captures, symGame)
+
+  for (let i = 0; i < captures.length; ++i) {
+    if (captures[i].slice(-1) === '+'){
+      captures[i] = captures[i].substring(0, captures[i].length - 1)
+    }
+  }
+
+  // console.log('captures: ', captures, depth)
   // Evalute capture sequences
   for (let i = 0, len = captures.length; i < len; ++i) {
 
