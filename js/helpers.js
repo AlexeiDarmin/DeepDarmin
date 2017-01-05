@@ -74,7 +74,7 @@ function getSquareFromMove(square) {
  @param   {String}  valid fen string
  @return  {Integer} delta from black's perspective
 */
-function getPositionalValue (moves) {
+function getPositionalValue (moves, turn) {
 
   const denominator = 16
   const val = {
@@ -121,6 +121,13 @@ function getOpponentMoves (symGame) {
 
 
 function getPositionalDelta (symGame) {
+
+  // checkmate and stalemate avoidance
+  if (symGame.moves().length === 0){
+    if (symGame.turn() === 'b') return -30000
+    else                        return 30000
+  }
+
   if (symGame.turn() === 'b')
     return getPositionalValue(symGame.moves()) - getPositionalValue(getOpponentMoves(symGame))
   else {
@@ -175,21 +182,102 @@ function filterEfficientCaptures (moves, symGame) {
 
   for (let i = 0, len = moves.length; i < len; ++i) {
 
-    // handling bullshit
-    if (moves[i].slice(-1) === '+') {
-      moves[i] = moves[i].substring(0, moves[i].length-1);
-    }
+    const move = moves[i]
 
-    const friendlyPieceValue  = getPieceValue(moves[i][0])
-    const enemyPieceValue     = getSquareValue(symGame, moves[i].slice(-2))
+    if (move.indexOf('x') > -1) {
 
-    if (friendlyPieceValue <= enemyPieceValue){
-      efficientTrades.push(moves[i])
+      // handling bullshit
+      if (move.slice(-1) === '+') {
+        moves[i] = move.substring(0, move.length - 1);
+      }
+
+      const friendlyPieceValue  = getPieceValue(move[0])
+      const enemyPieceValue     = getSquareValue(symGame, move.slice(-2))
+
+      if (friendlyPieceValue <= enemyPieceValue){
+        efficientTrades.push(move)
+      }
     }
   }
 
   return efficientTrades
 }
+
+
+
+// remove the random '+' that sometimes appears
+function sanitizeMoves(moves){
+  return moves.map((move) => {
+    if (move.slice(-1) === '+') {
+      return move.substring(0, move.length - 1)
+    } else {
+      return move
+    }
+  })
+}
+
+// find best case scenario down the capture route
+function findBestDelta(symGame, responses){
+
+  const isBlackTurn = symGame.turn() === 'b'
+  /* evaluate down the capture tree */
+  let bestDelta
+  if (isBlackTurn) {
+    bestDelta = -Infinity
+
+    $.each(responses, function(move, response) {
+      if (response.delta > bestDelta) bestDelta = response.delta
+    })
+
+  } else {
+    bestDelta = Infinity
+    $.each(responses, function(move, response) {
+      if (response.delta < bestDelta) bestDelta = response.delta
+    });
+  }
+
+  const color = (symGame.turn() === 'b') ? 1 : 0
+
+  /* evaluate current position, this is relevant when a player would
+  opt not to capture and instead hold the current position */
+  const currDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame)
+  if (isBlackTurn && currDelta > bestDelta) {
+    bestDelta = currDelta
+  } else if (!isBlackTurn && currDelta < bestDelta) {
+    bestDelta = currDelta
+  }
+
+  return bestDelta
+}
+
+// razoring, ignore moves that worsen the opponent's position
+function razerFilterMoves(symGame, moves, filterRatio){
+
+  let currDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame)
+
+  let razeredMoves = []
+  for (let i = 0, len = moves.length; i < len; ++i) {
+    const move = moves[i]
+    symGame.move(move)
+    const newDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame)
+
+    razeredMoves.push({move: move, delta: newDelta})
+    symGame.undo()
+  }
+
+  razeredMoves = razeredMoves.sort((a, b) => {
+      return a.delta - b.delta
+  })
+
+
+  let moves2 = []
+  for (let i = 0; i < razeredMoves.length * (1 / (filterRatio * filterRatio)); ++i){
+    moves2.push(razeredMoves[i].move)
+  }
+
+  return moves2
+}
+
 
 
 
