@@ -1,3 +1,22 @@
+const MAX_DEPTH = 1
+const POSITIONS = {
+  DEFAULT:      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+  MATE_IN_ONE:  'r3k1nr/p1pp1ppp/bpnbp3/6Nq/2PPN3/4P3/PP1BBPPP/R2Q1RK1 b KQkq - 0 1',
+  MATE_IN_TWO:  'COMING SOON',
+  MATE_IN_THREE:'COMING SOON',
+  ROOK_ONLY:    'COMING SOON',
+  TWO_ROOKS:    'COMING SOON',
+  QUEEN_ONLY:   'COMING SOON',
+  ADVANCED:     'rnb1k1nr/2pp1ppp/4p3/ppq5/8/P1N1P3/1P1B1PPP/R2QKBNR w KQkq - 0 1'
+}
+
+// change this to change starting position
+const STARTING_POSITION = POSITIONS.DEFAULT
+
+
+
+
+
 let nodesVisited    = 0
 let nodesPossible   = 0
 let maxCaptureDepth = 0
@@ -15,7 +34,7 @@ const makeMove = function () {
   nodesPossible = 0
   nodesVisited = 0
 
-  let gameTree = buildGameTree(symGame, depth, -100)
+  let gameTree = buildGameTree(symGame, MAX_DEPTH, -100)
   let bestMove = getLeastWorstMove(gameTree).move
 
   console.log(nodesVisited + '/' + nodesPossible)
@@ -173,7 +192,11 @@ const buildGameTree = (symGame, depth, parentWorstDelta, move = '') => {
   nodesVisited += moves.length - captures.length
 
   // razer filter non-capture moves
-  moves = razerFilterMoves(symGame, moves.filter((move) => move.indexOf('x') === -1), 3 - depth)
+  if (depth === MAX_DEPTH) {
+    moves = moves.filter((move) => move.indexOf('x') === -1)
+  } else {
+    moves = razerFilterMoves(symGame, moves.filter((move) => move.indexOf('x') === -1), MAX_DEPTH - depth + 1)
+  }
 
   // Evaluate all positional sequences
   for (let i = 0, len = moves.length; i < len; ++i) {
@@ -206,8 +229,6 @@ const buildGameTree = (symGame, depth, parentWorstDelta, move = '') => {
 
 
 
-
-const depth = 2
 
 var onDrop = function (source, target) {
   let currentBoard = game.fen()
@@ -276,17 +297,17 @@ var onSnapEnd = function () {
   board.position(game.fen())
 }
 
-// let fixedFen = '5k2/2NR4/8/8/R5K1/1b4p1/6P1/8 w KQ - 1 2'
+
 
 let board
-let game = new Chess()
+let game = new Chess(STARTING_POSITION)
 let statusEl = $('#status')
 let fenEl = $('#fen')
 let pgnEl = $('#pgn')
 
 var cfg = {
   draggable: true,
-  position: 'start',
+  position: STARTING_POSITION,
   onDragStart: onDragStart,
   onDrop: onDrop,
   onSnapEnd: onSnapEnd
@@ -294,5 +315,3 @@ var cfg = {
 
 board = ChessBoard('board', cfg)
 updateStatus()
-
-// makeMove()

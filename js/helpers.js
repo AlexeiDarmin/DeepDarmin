@@ -49,7 +49,7 @@ function getMaterialDelta (fen) {
 function getPawnPositionDelta (fen) {
 
   const arr = fen.split('/')
-  const val = 0.001
+  const val = 0.005
   let score = 0
 
   for (let r = 1; r < 7; ++r){                // rows
@@ -76,7 +76,7 @@ function getSquareFromMove(square) {
 */
 function getPositionalValue (moves, turn) {
 
-  const denominator = 16
+  const denominator = 12
   const val = {
     'pawn'  : 0,
     'knight': 0,
@@ -92,7 +92,7 @@ function getPositionalValue (moves, turn) {
     if      (c === 'N' && val['knight'] < 1) val['knight']  += 1 / denominator
     else if (c === 'B' && val['bishop'] < 1) val['bishop']  += 1 / denominator
     else if (c === 'R' && val['rook'] < 1)   val['rook']    += 1 / denominator / 2
-    else if (c === 'Q' && val['queen'] < 1)  val['queen']   += 1 / denominator / 4
+    else if (c === 'Q' && val['queen'] < 1)  val['queen']   += 1 / denominator / 8
   }
 
   let delta = val.pawn + val.knight + val.bishop + val.rook + val.queen
@@ -251,32 +251,37 @@ function findBestDelta(symGame, responses){
 }
 
 // razoring, ignore moves that worsen the opponent's position
+// only positional moves, no captures
 function razerFilterMoves(symGame, moves, filterRatio){
 
-  let currDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame)
+  const currDelta = getPositionalDelta(symGame)
+  let razeredMoves = [moves.length - 1]
 
-  let razeredMoves = []
   for (let i = 0, len = moves.length; i < len; ++i) {
-    const move = moves[i]
-    symGame.move(move)
-    const newDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame)
+    symGame.move(moves[i])
 
-    razeredMoves.push({move: move, delta: newDelta})
+    razeredMoves.push({
+      move: moves[i],
+      delta: getPositionalDelta(symGame)
+    })
+
     symGame.undo()
   }
 
-  razeredMoves = razeredMoves.sort((a, b) => {
-      return a.delta - b.delta
-  })
+  razeredMoves.sort((a, b) => { return a.delta - b.delta })
 
+  razeredMoves = razeredMoves.slice(0, razeredMoves.length * (1 / (filterRatio * filterRatio)))
 
-  let moves2 = []
-  for (let i = 0; i < razeredMoves.length * (1 / (filterRatio * filterRatio)); ++i){
-    moves2.push(razeredMoves[i].move)
+  const moves2 = [razeredMoves.length - 1]
+
+  for (let i = 0, len = razeredMoves.length; i < len; ++i){
+    moves2.push(razeredMoves[i])
   }
 
   return moves2
 }
+
+
 
 
 
