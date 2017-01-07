@@ -1,13 +1,41 @@
+/*
+Notes:
+
+  .moves() is computationally intensive so call it sparingly.
+  Redux style board evaluation should be more performant than evaluating each more independantly
+    Board evaluation currently takes 60% of the time
+
+  checks are considered captures
+
+
+Colors:
+
+  1 is black
+  2 is white
+
+*/
+
+
+//TODO generalize recursive pruning to work independantly
+//TODO prioritize previously supposed 'best move' (this may improve pruning)
+
+
+
 const MAX_DEPTH = 1
+const MAX_DYNAMIC_CAPTURE_DEPTH = 2
+
 const POSITIONS = {
-  DEFAULT:      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-  MATE_IN_ONE:  'r3k1nr/p1pp1ppp/bpnbp3/6Nq/2PPN3/4P3/PP1BBPPP/R2Q1RK1 b KQkq - 0 1',
-  MATE_IN_TWO:  'COMING SOON',
-  MATE_IN_THREE:'COMING SOON',
-  ROOK_ONLY:    'COMING SOON',
-  TWO_ROOKS:    'COMING SOON',
-  QUEEN_ONLY:   'COMING SOON',
-  ADVANCED:     'rnb1k1nr/2pp1ppp/4p3/ppq5/8/P1N1P3/1P1B1PPP/R2QKBNR w KQkq - 0 1'
+  DEFAULT:        'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+  MATE_IN_ONE:    'r3k1nr/p1pp1ppp/bpnbp3/7q/2PPN3/4PN2/PP1BBPPP/R2Q1RK1 w KQkq - 0 1',
+  MATE_IN_TWO:    'COMING SOON',
+  MATE_IN_THREE:  'COMING SOON',
+  MATE_THREAT:    '2k2r2/1pp2pp1/2q2n2/2P2bNp/1PBR1B2/Q1K2PP1/2r5/8 w KQ - 0 1',
+  ROOK_ONLY:      'rk6/8/8/8/8/8/K7/8 w KQkq - 0 1',
+  TWO_ROOKS:      'COMING SOON',
+  QUEEN_ONLY:     'COMING SOON',
+  TRAPPED_BISHOP: 'r1bqkbnr/1ppppppp/p7/2B5/2PPP3/5N2/1R3PPP/1N1QKB1R w KQkq - 0 1',
+  TEMP:           'r1bqk2r/2p2ppp/4pn2/pp1p2B1/3Q4/4P1P1/PPP2PBP/RN1R2K1 w KQkq - 0 1',
+  ADVANCED:       'rnb1k1nr/2pp1ppp/4p3/ppq5/8/P1N1P3/1P1B1PPP/R2QKBNR w KQkq - 0 1'
 }
 
 // change this to change starting position
@@ -15,30 +43,29 @@ const STARTING_POSITION = POSITIONS.DEFAULT
 
 
 
-
-
 let nodesVisited    = 0
 let nodesPossible   = 0
-let maxCaptureDepth = 0
 
 
 
 const makeMove = function () {
+
   console.time('Decision Time')
 
-  // Initilize current board
   const fen = buildValidFen(board, 'b')
   const symGame = new Chess(fen)
-  const moves = symGame.moves()
 
   nodesPossible = 0
   nodesVisited = 0
 
-  let gameTree = buildGameTree(symGame, MAX_DEPTH, -100)
+  let gameTree = buildGameTree(symGame, -100000)
   let bestMove = getLeastWorstMove(gameTree).move
 
+
+  console.timeEnd('Decision Time')
   console.log(nodesVisited + '/' + nodesPossible)
   console.log('game tree: ', gameTree)
+
 
   game.move(bestMove)
 
@@ -47,31 +74,28 @@ const makeMove = function () {
   }
   board.position(game.fen())
   updateStatus()
-  console.timeEnd('Decision Time')
+
 }
 
+let debugFlag = false
 
 
+const staticCaptureExchange = (symGame, move) => {
+
+  const allMoves = symGame.moves()
+  const square = move.slice(-2)     //TODO unstable square calculation
 
 
-const staticCaptureExchange = (symGame, square, color, move) => {
-
-  // Filter moves that capture on the requested square
-  let moves = symGame.moves().filter((move) => {
-
-    const isCapture = move.indexOf('x') > -1
-    const isSquare = move.slice(-2) === square
-
-    return isCapture && isSquare
+  // Moves that go to same square as previous move (must be a capture)
+  let moves = allMoves.filter((newMove) => {
+    return newMove.slice(-2) === square
   })
 
-  // console.log('s:', moves)
   nodesVisited  += moves.length
-  nodesPossible += symGame.moves().length
+  nodesPossible += allMoves.length
 
-  // terminal node
   if (moves.length === 0) {
-    return new Node(symGame.fen(), move, getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame), null)
+    return new Node(symGame.fen(), move, getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame, allMoves), null)
   }
 
 
@@ -79,11 +103,11 @@ const staticCaptureExchange = (symGame, square, color, move) => {
 
   for (let i = 0, len = moves.length; i < len; ++i) {
     symGame.move(moves[i])
-    responses[moves[i]] = staticCaptureExchange(symGame, square, color, moves[i])
+    responses[moves[i]] = staticCaptureExchange(symGame, moves[i])
     symGame.undo()
   }
 
-  const bestDelta = findBestDelta(symGame, responses)
+  const bestDelta = findBestDelta(symGame, responses, allMoves)
 
   return new Node(symGame.fen(), move, bestDelta, responses)
 }
@@ -91,50 +115,47 @@ const staticCaptureExchange = (symGame, square, color, move) => {
 
 
 
-// Applies every possible capture at position 'square'. Returns the optimal case scenario for each player.
-// color 1 = black, color 2 = white
-const dynamicCaptureExchange = (symGame, square, color, move) => {
+// Exhaustively runs every capture sequence on the board until dynamic capture exchange depth limit is reached.
+const dynamicCaptureExchange = (symGame, move, depth = 0) => {
 
-  maxCaptureDepth++
+  const allMoves = symGame.moves()
 
-  let moves = sanitizeMoves(symGame.moves().filter((move) => move.indexOf('x') > -1))
-  const efficientTrades = filterEfficientCaptures(moves, symGame)
+  let moves = filterEfficientCaptures(allMoves, symGame)
 
-  nodesVisited  += efficientTrades.length
-  nodesPossible += symGame.moves().length
-
-
-
-  if (efficientTrades.length !== 0){
-    moves = efficientTrades
+  if (moves.length === 0) {
+    moves = getCaptureMovesOnly(allMoves)
   }
+
+  nodesVisited  += moves.length
+  nodesPossible += allMoves.length
 
   let responses = {}
 
-  // terminal node
-  if (moves.length === 0 || maxCaptureDepth === 4) {
-    maxCaptureDepth--
-    return new Node(symGame.fen(), move, getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame), null)
-  } else if (maxCaptureDepth === 4) {
+
+  if (moves.length === 0) {
+    return new Node(symGame.fen(), move, getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame, allMoves), null)
+
+  } else if (depth === MAX_DYNAMIC_CAPTURE_DEPTH) {
     /* switch to static capture exchanges */
     // for (let i = 0, len = moves.length; i < len; ++i) {
-    //   let currSquare = move.slice(-2)
+    //
     //   symGame.move(moves[i])
-    //   responses[moves[i]] = staticCaptureExchange(symGame, currSquare, color, moves[i])
+    //   responses[moves[i]] = staticCaptureExchange(symGame, moves[i])
     //   symGame.undo()
+    //
     // }
   } else {
     /* continue executing dynamic static exchange */
     for (let i = 0, len = moves.length; i < len; ++i) {
       symGame.move(moves[i])
-      responses[moves[i]] = dynamicCaptureExchange(symGame, square, color, moves[i])
+
+      responses[moves[i]] = dynamicCaptureExchange(symGame, moves[i], depth + 1)
+
       symGame.undo()
     }
   }
 
-  const bestDelta = findBestDelta(symGame, responses)
-
-  maxCaptureDepth--
+  const bestDelta = findBestDelta(symGame, responses, allMoves)
 
   return new Node(symGame.fen(), move, bestDelta, responses)
 }
@@ -143,30 +164,31 @@ const dynamicCaptureExchange = (symGame, square, color, move) => {
 
 
 
-const buildGameTree = (symGame, depth, parentWorstDelta, move = '') => {
-  // console.log('depth: ', depth)
-  let moves     = symGame.moves()
-  const captures = sanitizeMoves(moves.filter((move) => move.indexOf('x') > -1))
+const buildGameTree = (symGame, parentWorstDelta, move = '', depth = 0) => {
+  console.log('...')
+  const rawMoves    = symGame.moves()
+  const allMoves    = organizeMoveByType(rawMoves)
+  const captures    = allMoves.captures
+  const positional  = allMoves.positional
 
   nodesVisited  += captures.length
-  nodesPossible += symGame.moves().length
+  nodesPossible += rawMoves.length
 
   let fen       = symGame.fen()
+  let moves     = captures
 
   const responses = {}
   let branchWorstDelta = 100
 
 
-  // captures = filterEfficientCaptures(captures, symGame)
-
-
-  // Evalute capture sequences
-  for (let i = 0, len = captures.length; i < len; ++i) {
+  // Evaluate capture sequences
+  for (let i = 0, len = moves.length; i < len; ++i) {
 
     const currMove = captures[i]
 
     symGame.move(currMove)
-    responses[currMove] = dynamicCaptureExchange(symGame, currMove.slice(-2), 1, currMove)
+
+    responses[currMove] = dynamicCaptureExchange(symGame, currMove)
 
     if (responses[currMove].delta < parentWorstDelta) {
       symGame.undo()
@@ -176,38 +198,35 @@ const buildGameTree = (symGame, depth, parentWorstDelta, move = '') => {
     if (responses[currMove].delta < branchWorstDelta) {
       branchWorstDelta = responses[currMove].delta
     }
+
     symGame.undo()
   }
 
   // Terminal nodes do not evaluate positional moves.
-  if (depth === 0) {
-    let currentPositionDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame)
-    if (currentPositionDelta < branchWorstDelta){
-        return new Node(symGame.fen(), move, currentPositionDelta, responses)
-    } else {
-        return new Node(symGame.fen(), move, branchWorstDelta, responses)
-    }
-  }
-
-  nodesVisited += moves.length - captures.length
-
-  // razer filter non-capture moves
   if (depth === MAX_DEPTH) {
-    moves = moves.filter((move) => move.indexOf('x') === -1)
-  } else {
-    moves = razerFilterMoves(symGame, moves.filter((move) => move.indexOf('x') === -1), MAX_DEPTH - depth + 1)
+    const currDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame, rawMoves)
+
+    return new Node(symGame.fen(), move, (currDelta < branchWorstDelta) ? currDelta : branchWorstDelta, responses)
   }
 
-  // Evaluate all positional sequences
+  nodesVisited += rawMoves.length - captures.length
+
+
+  // Apply razer filter on non-default depths
+  moves = (depth === 0) ?
+    positional :
+    razerFilterMoves(symGame, positional, depth + 1)
+
+
+  // Evaluate positional moves
   for (let i = 0, len = moves.length; i < len; ++i) {
 
     const currMove = moves[i]
-
-    let preFen = symGame.fen()
+    const preFen = symGame.fen()
 
     symGame.move(currMove)
 
-    responses[currMove] = buildGameTree(symGame, depth - 1, parentWorstDelta, currMove)
+    responses[currMove] = buildGameTree(symGame, parentWorstDelta, currMove, depth + 1)
 
     if (responses[currMove].delta < branchWorstDelta) {
       branchWorstDelta = responses[currMove].delta

@@ -12,23 +12,24 @@
 */
 function getMaterialDelta (fen) {
 
+  //TODO finite state machine delta calculation apply 1 delta change per move
+
   let score = 0
-  let i     = 0
 
-  while (fen[i] !== ' ') {
-    let c = fen[i]
+  for (let i = 0, len = fen.length; i < fen.length; ++i) {
 
-    if      (c === 'p') score += 1
-    else if (c === 'P') score -= 1
-    else if (c === 'n') score += 3
-    else if (c === 'N') score -= 3
-    else if (c === 'b') score += 3
-    else if (c === 'B') score -= 3
-    else if (c === 'r') score += 5
-    else if (c === 'R') score -= 5
-    else if (c === 'q') score += 9
-    else if (c === 'Q') score -= 9
-    ++i
+    if (fen[i] === ' ') return score
+
+    if      (fen[i] === 'p') score += 1
+    else if (fen[i] === 'P') score -= 1
+    else if (fen[i] === 'n') score += 3
+    else if (fen[i] === 'N') score -= 3
+    else if (fen[i] === 'b') score += 3
+    else if (fen[i] === 'B') score -= 3
+    else if (fen[i] === 'r') score += 5
+    else if (fen[i] === 'R') score -= 5
+    else if (fen[i] === 'q') score += 9
+    else if (fen[i] === 'Q') score -= 9
   }
 
   score += getPawnPositionDelta(fen)
@@ -48,17 +49,13 @@ function getMaterialDelta (fen) {
 */
 function getPawnPositionDelta (fen) {
 
-  const arr = fen.split('/')
-  const val = 0.005
   let score = 0
+  let row   = 0
 
-  for (let r = 1; r < 7; ++r){                // rows
-    for (let c = 0; c < arr[r].length; ++c){  // columns
-
-      if (arr[r][c] === 'p')      { score += val * r }        // black pawn
-      else if (arr[r][c] === 'P') { score -= val * (6 - r) }  // white pawn
-
-    }
+  for (let i = 0, len = fen.split(' ')[0].length; i < len; ++i) {
+    if (fen[i] === 'p')      { score += 0.01 * row }        // black pawn
+    else if (fen[i] === 'P') { score -= 0.01 * (6 - row) }  // white pawn
+    else if (fen[i] === '/') ++row
   }
 
   return score
@@ -66,9 +63,6 @@ function getPawnPositionDelta (fen) {
 }
 
 
-function getSquareFromMove(square) {
-  return square.substring(square.length-3, square.length-1)
-}
 
 /*  Takes a fen string and computes the positional difference from black and white.
  @param   {String}  valid fen string
@@ -77,32 +71,30 @@ function getSquareFromMove(square) {
 function getPositionalValue (moves, turn) {
 
   const denominator = 12
-  const val = {
-    'pawn'  : 0,
-    'knight': 0,
-    'bishop': 0,
-    'rook'  : 0,
-    'queen': 0
-  }
+  let value = 0
 
   for (let i = 0, len = moves.length; i < len; ++i) {
 
-    const c = moves[i][0]
+    if      (moves[i][0] === 'N') value += 1 / denominator
+    else if (moves[i][0] === 'B') value += 1 / denominator
+    else if (moves[i][0] === 'R') value += 1 / denominator / 2
+    else if (moves[i][0] === 'Q') value += 1 / denominator / 12
+    else if (moves[i][0] === 'K') value += 1 / denominator
 
-    if      (c === 'N' && val['knight'] < 1) val['knight']  += 1 / denominator
-    else if (c === 'B' && val['bishop'] < 1) val['bishop']  += 1 / denominator
-    else if (c === 'R' && val['rook'] < 1)   val['rook']    += 1 / denominator / 2
-    else if (c === 'Q' && val['queen'] < 1)  val['queen']   += 1 / denominator / 8
+    if (moves[i][0].indexOf('x') !== -1 || moves[i][0].indexOf('+') !== -1) {
+      value += 0.2
+    }
   }
 
-  let delta = val.pawn + val.knight + val.bishop + val.rook + val.queen
+  //TODO motivate offensive moves
 
-  return delta
+  return value
 }
 
 
 
 /* totally untested ... this will blow your game state/history  */
+// must use symGame.load(fen) to reload the position, .undo() stops working
 function getOpponentMoves (symGame) {
   let gamePGN = symGame.pgn()
   let tokens = symGame.fen().split(' ')
@@ -120,18 +112,18 @@ function getOpponentMoves (symGame) {
 
 
 
-function getPositionalDelta (symGame) {
+function getPositionalDelta (symGame, allMoves) {
+  let moves = symGame.moves()
 
   // checkmate and stalemate avoidance
-  if (symGame.moves().length === 0){
-    if (symGame.turn() === 'b') return -30000
-    else                        return 30000
+  if (moves.length === 0){
+    return (symGame.turn() === 'b') ? -30000 : 30000
   }
 
   if (symGame.turn() === 'b')
-    return getPositionalValue(symGame.moves()) - getPositionalValue(getOpponentMoves(symGame))
+    return getPositionalValue(allMoves) - getPositionalValue(getOpponentMoves(symGame))
   else {
-    return getPositionalValue(getOpponentMoves(symGame)) - getPositionalValue(symGame.moves())
+    return getPositionalValue(getOpponentMoves(symGame)) - getPositionalValue(allMoves)
   }
 }
 
@@ -174,22 +166,19 @@ function getLeastWorstMove (gameTree) {
 
 /*
   Filter only efficient exchanges where less valuable pieces capture more valuable pieces.
+  includes checks
 */
 function filterEfficientCaptures (moves, symGame) {
 
   const efficientTrades = []
 
-
   for (let i = 0, len = moves.length; i < len; ++i) {
 
     const move = moves[i]
 
-    if (move.indexOf('x') > -1) {
-
-      // handling bullshit
-      if (move.slice(-1) === '+') {
-        moves[i] = move.substring(0, move.length - 1);
-      }
+    if (move.slice(-1) === '+' || move.slice(-1) === '#') {
+      efficientTrades.push(move.substring(0, move.length - 1))
+    } else if (move.indexOf('x') > -1) {
 
       const friendlyPieceValue  = getPieceValue(move[0])
       const enemyPieceValue     = getSquareValue(symGame, move.slice(-2))
@@ -205,42 +194,76 @@ function filterEfficientCaptures (moves, symGame) {
 
 
 
-// remove the random '+' that sometimes appears
-function sanitizeMoves(moves){
-  return moves.map((move) => {
-    if (move.slice(-1) === '+') {
-      return move.substring(0, move.length - 1)
-    } else {
-      return move
+function getCaptureMovesOnly(allMoves) {
+
+  let moves = []
+
+  for (let i = 0, len = allMoves.length; i < len; ++i){
+
+    if (allMoves[i].slice(-1) === '+' || allMoves[i].slice(-1) === '#') {
+      moves.push(allMoves[i].substring(0, allMoves[i].length - 1))
+    } else if (allMoves[i].indexOf('x') > -1) {
+      moves.push(allMoves[i])
     }
-  })
-}
 
-// find best case scenario down the capture route
-function findBestDelta(symGame, responses){
-
-  const isBlackTurn = symGame.turn() === 'b'
-  /* evaluate down the capture tree */
-  let bestDelta
-  if (isBlackTurn) {
-    bestDelta = -Infinity
-
-    $.each(responses, function(move, response) {
-      if (response.delta > bestDelta) bestDelta = response.delta
-    })
-
-  } else {
-    bestDelta = Infinity
-    $.each(responses, function(move, response) {
-      if (response.delta < bestDelta) bestDelta = response.delta
-    });
   }
 
-  const color = (symGame.turn() === 'b') ? 1 : 0
+  return moves
+}
+
+function organizeMoveByType(allMoves) {
+
+  const moves = {
+    captures: [],
+    positional: []
+  }
+
+  let flag = false
+
+  for (let i = 0, len = allMoves.length; i < len; ++i){
+
+    // Checks
+    if (allMoves[i].slice(-1) === '+' || allMoves[i].slice(-1) === '#') {
+      moves.captures.push(allMoves[i].substring(0, allMoves[i].length - 1))
+    } else if (allMoves[i].indexOf('x') !== -1) {
+      moves.captures.push(allMoves[i])
+    } else {
+      moves.positional.push(allMoves[i])
+    }
+
+  }
+
+  return moves
+}
+
+
+// find best case scenario down the capture route
+function findBestDelta(symGame, responses, allMoves){
+
+  const isBlackTurn = symGame.turn() === 'b'
+
+  let bestDelta = (isBlackTurn) ? -30000 : 30000
+
+  if (isBlackTurn) {
+    for (let key in responses) {
+      if (responses.hasOwnProperty(key)) {
+        if (responses[key].delta > bestDelta) bestDelta = responses[key].delta
+      }
+    }
+
+  } else {
+
+    for (let key in responses) {
+      if (responses.hasOwnProperty(key)) {
+        if (responses[key].delta < bestDelta) bestDelta = responses[key].delta
+      }
+    }
+
+  }
 
   /* evaluate current position, this is relevant when a player would
   opt not to capture and instead hold the current position */
-  const currDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame)
+  const currDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame, allMoves)
   if (isBlackTurn && currDelta > bestDelta) {
     bestDelta = currDelta
   } else if (!isBlackTurn && currDelta < bestDelta) {
@@ -254,15 +277,14 @@ function findBestDelta(symGame, responses){
 // only positional moves, no captures
 function razerFilterMoves(symGame, moves, filterRatio){
 
-  const currDelta = getPositionalDelta(symGame)
-  let razeredMoves = [moves.length - 1]
+  let razeredMoves = []
 
   for (let i = 0, len = moves.length; i < len; ++i) {
     symGame.move(moves[i])
 
     razeredMoves.push({
       move: moves[i],
-      delta: getPositionalDelta(symGame)
+      delta: getPositionalDelta(symGame, symGame.moves())
     })
 
     symGame.undo()
@@ -272,10 +294,10 @@ function razerFilterMoves(symGame, moves, filterRatio){
 
   razeredMoves = razeredMoves.slice(0, razeredMoves.length * (1 / (filterRatio * filterRatio)))
 
-  const moves2 = [razeredMoves.length - 1]
+  const moves2 = []
 
   for (let i = 0, len = razeredMoves.length; i < len; ++i){
-    moves2.push(razeredMoves[i])
+    moves2.push(razeredMoves[i].move)
   }
 
   return moves2
