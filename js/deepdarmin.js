@@ -18,6 +18,8 @@ Colors:
 
 //TODO generalize recursive pruning to work independantly
 //TODO prioritize previously supposed 'best move' (this may improve pruning)
+//TODO value tempo
+
 
 
 
@@ -31,10 +33,10 @@ const POSITIONS = {
   MATE_IN_THREE:  'COMING SOON',
   MATE_THREAT:    '2k2r2/1pp2pp1/2q2n2/2P2bNp/1PBR1B2/Q1K2PP1/2r5/8 w KQ - 0 1',
   ROOK_ONLY:      'rk6/8/8/8/8/8/K7/8 w KQkq - 0 1',
-  TWO_ROOKS:      'COMING SOON',
+  TWO_ROOKS:      'rkr5/8/8/8/8/8/7K/8 w KQkq - 0 1',
   QUEEN_ONLY:     'COMING SOON',
   TRAPPED_BISHOP: 'r1bqkbnr/1ppppppp/p7/2B5/2PPP3/5N2/1R3PPP/1N1QKB1R w KQkq - 0 1',
-  TEMP:           'r1bqk2r/2p2ppp/4pn2/pp1p2B1/3Q4/4P1P1/PPP2PBP/RN1R2K1 w KQkq - 0 1',
+  TEMP:           'r1bqk2r/pppp1ppp/2n1p3/8/2PPn3/2b1PN2/PP1B1PPP/R2QKB1R w KQkq - 0 1',
   ADVANCED:       'rnb1k1nr/2pp1ppp/4p3/ppq5/8/P1N1P3/1P1B1PPP/R2QKBNR w KQkq - 0 1'
 }
 
@@ -58,7 +60,7 @@ const makeMove = function () {
   nodesPossible = 0
   nodesVisited = 0
 
-  let gameTree = buildGameTree(symGame, -100000)
+  let gameTree = buildGameTree(symGame)
   let bestMove = getLeastWorstMove(gameTree).move
 
 
@@ -137,13 +139,13 @@ const dynamicCaptureExchange = (symGame, move, depth = 0) => {
 
   } else if (depth === MAX_DYNAMIC_CAPTURE_DEPTH) {
     /* switch to static capture exchanges */
-    // for (let i = 0, len = moves.length; i < len; ++i) {
-    //
-    //   symGame.move(moves[i])
-    //   responses[moves[i]] = staticCaptureExchange(symGame, moves[i])
-    //   symGame.undo()
-    //
-    // }
+    for (let i = 0, len = moves.length; i < len; ++i) {
+
+      symGame.move(moves[i])
+      responses[moves[i]] = staticCaptureExchange(symGame, moves[i])
+      symGame.undo()
+
+    }
   } else {
     /* continue executing dynamic static exchange */
     for (let i = 0, len = moves.length; i < len; ++i) {
@@ -164,8 +166,10 @@ const dynamicCaptureExchange = (symGame, move, depth = 0) => {
 
 
 
-const buildGameTree = (symGame, parentWorstDelta, move = '', depth = 0) => {
-  console.log('...')
+const buildGameTree = (symGame, alpha = -100000, move = '', depth = 0) => {
+
+  // console.log('...')
+
   const rawMoves    = symGame.moves()
   const allMoves    = organizeMoveByType(rawMoves)
   const captures    = allMoves.captures
@@ -177,8 +181,12 @@ const buildGameTree = (symGame, parentWorstDelta, move = '', depth = 0) => {
   let fen       = symGame.fen()
   let moves     = captures
 
+  if (moves.length === 0) {
+    moves = allMoves.captures
+  }
+
   const responses = {}
-  let branchWorstDelta = 100
+  let branchAlpha = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame, rawMoves)
 
 
   // Evaluate capture sequences
@@ -188,15 +196,15 @@ const buildGameTree = (symGame, parentWorstDelta, move = '', depth = 0) => {
 
     symGame.move(currMove)
 
-    responses[currMove] = dynamicCaptureExchange(symGame, currMove)
+    responses[currMove] = dynamicCaptureExchange(symGame, currMove, depth)
 
-    if (responses[currMove].delta < parentWorstDelta) {
+    if (responses[currMove].delta < alpha) {
       symGame.undo()
       return new Node(symGame.fen(), currMove, responses[currMove].delta, responses)
     }
 
-    if (responses[currMove].delta < branchWorstDelta) {
-      branchWorstDelta = responses[currMove].delta
+    if (responses[currMove].delta < branchAlpha) {
+      branchAlpha = responses[currMove].delta
     }
 
     symGame.undo()
@@ -204,9 +212,9 @@ const buildGameTree = (symGame, parentWorstDelta, move = '', depth = 0) => {
 
   // Terminal nodes do not evaluate positional moves.
   if (depth === MAX_DEPTH) {
-    const currDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame, rawMoves)
+    let currDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame, rawMoves)
 
-    return new Node(symGame.fen(), move, (currDelta < branchWorstDelta) ? currDelta : branchWorstDelta, responses)
+    return new Node(symGame.fen(), move, (currDelta < branchAlpha) ? currDelta : branchAlpha, responses)
   }
 
   nodesVisited += rawMoves.length - captures.length
@@ -215,7 +223,7 @@ const buildGameTree = (symGame, parentWorstDelta, move = '', depth = 0) => {
   // Apply razer filter on non-default depths
   moves = (depth === 0) ?
     positional :
-    razerFilterMoves(symGame, positional, depth + 1)
+    razorFilter(symGame, positional, branchAlpha)
 
 
   // Evaluate positional moves
@@ -226,16 +234,22 @@ const buildGameTree = (symGame, parentWorstDelta, move = '', depth = 0) => {
 
     symGame.move(currMove)
 
-    responses[currMove] = buildGameTree(symGame, parentWorstDelta, currMove, depth + 1)
+    responses[currMove] = buildGameTree(symGame, alpha, currMove, depth + 1)
 
-    if (responses[currMove].delta < branchWorstDelta) {
-      branchWorstDelta = responses[currMove].delta
+    if (responses[currMove].delta < alpha) {
+      symGame.undo()
+      return new Node(symGame.fen(), currMove, responses[currMove].delta, responses)
+    }
+
+    if (responses[currMove].delta < branchAlpha) {
+      branchAlpha = responses[currMove].delta
     }
 
     symGame.load(preFen)
   }
 
-  return new Node(symGame.fen(), move, branchWorstDelta, responses)
+  const currDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame, allMoves)
+  return new Node(symGame.fen(), move, (currDelta > 30000) ? currDelta : branchAlpha, responses)
 }
 
 

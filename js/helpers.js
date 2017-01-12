@@ -1,9 +1,9 @@
 /*
   This file holds all the helpers that are used by deepdarmin.js
-  TODO: Support API that allows access to these methods
 */
 
-
+//TODO razer above current delta or quarter of moves
+//TODO increase MAX_DEPTH late game and able to mate with 2 rooks, 1 rook, or queen.
 
 
 /*  Takes a fen string and computes the material difference from black and white.
@@ -11,10 +11,20 @@
  @return  {Integer} delta from black's perspective
 */
 function getMaterialDelta (fen) {
-
   //TODO finite state machine delta calculation apply 1 delta change per move
 
   let score = 0
+
+
+
+  score += getPawnPositionDelta(fen)
+
+  const board = fen.split(' ')[0].split('/')
+
+  // King is castled
+  if (board[0].slice(-2).substr(0, 1) === 'k') score += 1.5
+  if (board[7].slice(-2).substr(0, 1) === 'K') score -= 1.5
+
 
   for (let i = 0, len = fen.length; i < fen.length; ++i) {
 
@@ -32,12 +42,6 @@ function getMaterialDelta (fen) {
     else if (fen[i] === 'Q') score -= 9
   }
 
-  score += getPawnPositionDelta(fen)
-
-  //TODO value of castling
-  //TODO value of mating
-  //TODO value of checking
-
   return score
 }
 
@@ -51,6 +55,7 @@ function getPawnPositionDelta (fen) {
 
   let score = 0
   let row   = 0
+
 
   for (let i = 0, len = fen.split(' ')[0].length; i < len; ++i) {
     if (fen[i] === 'p')      { score += 0.01 * row }        // black pawn
@@ -79,14 +84,12 @@ function getPositionalValue (moves, turn) {
     else if (moves[i][0] === 'B') value += 1 / denominator
     else if (moves[i][0] === 'R') value += 1 / denominator / 2
     else if (moves[i][0] === 'Q') value += 1 / denominator / 12
-    else if (moves[i][0] === 'K') value += 1 / denominator
+    else if (moves[i][0] === 'K') value += 1 / denominator * 3
 
     if (moves[i][0].indexOf('x') !== -1 || moves[i][0].indexOf('+') !== -1) {
-      value += 0.2
+      value += 0.1
     }
   }
-
-  //TODO motivate offensive moves
 
   return value
 }
@@ -116,8 +119,19 @@ function getPositionalDelta (symGame, allMoves) {
   let moves = symGame.moves()
 
   // checkmate and stalemate avoidance
+  //TODO, seek stale mate if winning, avoid stalemate if losing
+  //TODO, apply some reasoning to other draws, like 3 fold repitition, 50 moves, insufficient material
   if (moves.length === 0){
-    return (symGame.turn() === 'b') ? -30000 : 30000
+
+    if (symGame.in_checkmate())
+      return (symGame.turn() === 'b') ? -30000 : 30000
+
+    // stalemate desirable only when behind
+    if (getMaterialDelta(symGame.fen()) > 0)
+      return 30000
+    else {
+      return -30000
+    }
   }
 
   if (symGame.turn() === 'b')
@@ -275,12 +289,14 @@ function findBestDelta(symGame, responses, allMoves){
 
 // razoring, ignore moves that worsen the opponent's position
 // only positional moves, no captures
-function razerFilterMoves(symGame, moves, filterRatio){
+function razorFilter(symGame, moves, alpha){
 
   let razeredMoves = []
 
   for (let i = 0, len = moves.length; i < len; ++i) {
     symGame.move(moves[i])
+
+    const delta = getPositionalDelta(symGame, symGame.moves())
 
     razeredMoves.push({
       move: moves[i],
@@ -292,7 +308,7 @@ function razerFilterMoves(symGame, moves, filterRatio){
 
   razeredMoves.sort((a, b) => { return a.delta - b.delta })
 
-  razeredMoves = razeredMoves.slice(0, razeredMoves.length * (1 / (filterRatio * filterRatio)))
+  razeredMoves = razeredMoves.slice(0, razeredMoves.length / 4)
 
   const moves2 = []
 
