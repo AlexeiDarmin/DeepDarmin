@@ -6,6 +6,8 @@
 //TODO increase MAX_DEPTH late game and able to mate with 2 rooks, 1 rook, or queen.
 
 
+
+
 /*  Takes a fen string and computes the material difference from black and white.
  @param   {String}  valid fen string
  @return  {Integer} delta from black's perspective
@@ -15,16 +17,7 @@ function getMaterialDelta (fen) {
 
   let score = 0
 
-
-
-  score += getPawnPositionDelta(fen)
-
   const board = fen.split(' ')[0].split('/')
-
-  // King is castled
-  if (board[0].slice(-2).substr(0, 1) === 'k') score += 1.5
-  if (board[7].slice(-2).substr(0, 1) === 'K') score -= 1.5
-
 
   for (let i = 0, len = fen.length; i < fen.length; ++i) {
 
@@ -45,6 +38,51 @@ function getMaterialDelta (fen) {
   return score
 }
 
+
+let store = {
+  materialDelta: 0,
+  materialHistory: []
+}
+
+const material = {
+  'p': 1,
+  'n': 3,
+  'b': 3,
+  'r': 5,
+  'q': 9
+}
+
+
+
+
+//TODO make it less side-effecty
+// Takes as input a piece object and updates the materialDelta
+function updateMaterialDelta(symGame, move){
+
+
+  const xIndex = move.indexOf('x')
+
+  let piece
+  if (xIndex !== -1){
+    piece = symGame.get(move.substr(xIndex + 1, 2))
+  } else if (move.slice(-1) === '*' || move.slice(-1) === '#'){
+    piece = symGame.get(move.substr(move.length - 2, move.length - 1))
+  } else {
+    piece = symGame.get(move.substr(move.length - 2, move.length))
+  }
+
+  store.materialHistory.push(store.materialDelta)
+
+  if (piece === null) return
+
+  store.materialDelta += (material[piece.type] * ((piece.color === 'w') ? 1 : -1))
+}
+
+
+// Undoes the most recent update to material delta
+function undoUpdateMaterialDelta(){
+  store.materialDelta = store.materialHistory.pop()
+}
 
 
 /*  Takes a fen string and computes the positional pawn difference from black and white.
@@ -86,6 +124,7 @@ function getPositionalValue (moves, turn) {
     else if (moves[i][0] === 'Q') value += 1 / denominator / 12
     else if (moves[i][0] === 'K') value += 1 / denominator * 3
 
+    //TODO rewrite this check functionally
     if (moves[i][0].indexOf('x') !== -1 || moves[i][0].indexOf('+') !== -1) {
       value += 0.1
     }
@@ -96,7 +135,7 @@ function getPositionalValue (moves, turn) {
 
 
 
-/* totally untested ... this will blow your game state/history  */
+/* totally untested ... this will blow your game store/history  */
 // must use symGame.load(fen) to reload the position, .undo() stops working
 function getOpponentMoves (symGame) {
   let gamePGN = symGame.pgn()
@@ -116,6 +155,7 @@ function getOpponentMoves (symGame) {
 
 
 function getPositionalDelta (symGame, allMoves) {
+
   let moves = symGame.moves()
 
   // checkmate and stalemate avoidance
@@ -127,7 +167,7 @@ function getPositionalDelta (symGame, allMoves) {
       return (symGame.turn() === 'b') ? -30000 : 30000
 
     // stalemate desirable only when behind
-    if (getMaterialDelta(symGame.fen()) > 0)
+    if (store.materialDelta > 0)
       return 30000
     else {
       return -30000
@@ -178,6 +218,7 @@ function getLeastWorstMove (gameTree) {
 }
 
 
+
 /*
   Filter only efficient exchanges where less valuable pieces capture more valuable pieces.
   includes checks
@@ -225,6 +266,8 @@ function getCaptureMovesOnly(allMoves) {
   return moves
 }
 
+
+
 function organizeMoveByType(allMoves) {
 
   const moves = {
@@ -249,6 +292,7 @@ function organizeMoveByType(allMoves) {
 
   return moves
 }
+
 
 
 // find best case scenario down the capture route
@@ -277,7 +321,7 @@ function findBestDelta(symGame, responses, allMoves){
 
   /* evaluate current position, this is relevant when a player would
   opt not to capture and instead hold the current position */
-  const currDelta = getMaterialDelta(symGame.fen()) + getPositionalDelta(symGame, allMoves)
+  const currDelta = store.materialDelta + getPositionalDelta(symGame, allMoves)
   if (isBlackTurn && currDelta > bestDelta) {
     bestDelta = currDelta
   } else if (!isBlackTurn && currDelta < bestDelta) {
@@ -286,6 +330,8 @@ function findBestDelta(symGame, responses, allMoves){
 
   return bestDelta
 }
+
+
 
 // razoring, ignore moves that worsen the opponent's position
 // only positional moves, no captures
