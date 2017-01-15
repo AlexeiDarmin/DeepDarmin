@@ -41,7 +41,8 @@ function getMaterialDelta (fen) {
 
 let store = {
   materialDelta: 0,
-  materialHistory: []
+  materialHistory: [],
+  positions: {}
 }
 
 const material = {
@@ -154,8 +155,9 @@ function getOpponentMoves (symGame) {
 
 
 
-function getPositionalDelta (symGame, allMoves) {
 
+function getPositionalDelta (symGame, allMoves) {
+  // return 0
   let moves = symGame.moves()
 
   // checkmate and stalemate avoidance

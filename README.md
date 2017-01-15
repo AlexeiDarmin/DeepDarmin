@@ -1,7 +1,8 @@
 # DeepDarmin
 Chess engine built in javascript
 
-Play against the various versions:
+Play against the various releases:
 
-<a href="http://alexeidarmin.com/chess/alphav1/">Alpha v1</a>
-<a href="http://alexeidarmin.com/chess/alphav2/">Alpha v2</a>
+## Alpha
+- <a href="http://alexeidarmin.com/chess/alphav2/">v0.0.2</a>
+- <a href="http://alexeidarmin.com/chess/alphav1/">v0.0.1</a>

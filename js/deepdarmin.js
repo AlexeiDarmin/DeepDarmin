@@ -7,6 +7,8 @@ Notes:
 
   checks are considered captures
 
+  rename positional to tactical moves
+
 
 Colors:
 
@@ -23,8 +25,8 @@ Colors:
 
 
 
-const MAX_DEPTH = 1
-const MAX_DYNAMIC_CAPTURE_DEPTH = 3
+const MAX_DEPTH = 2
+const MAX_DYNAMIC_CAPTURE_DEPTH = 2
 
 const POSITIONS = {
   DEFAULT:        'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
@@ -41,12 +43,11 @@ const POSITIONS = {
 }
 
 // change this to change starting position
-const STARTING_POSITION = POSITIONS.ADVANCED
+const STARTING_POSITION = POSITIONS.TEMP
 
 
 
 let nodesVisited    = 0
-let nodesPossible   = 0
 
 
 
@@ -57,27 +58,47 @@ const makeMove = function () {
   const fen = buildValidFen(board, 'b')
   const symGame = new Chess(fen)
 
-  nodesPossible = 0
   nodesVisited = 0
 
 
   store.materialHistory.push(getMaterialDelta(fen))
 
-  let gameTree = buildGameTree(symGame)
-  let bestMove = getLeastWorstMove(gameTree).move
+  // let nm = negaMax(symGame, MAX_DEPTH)
 
-  undoUpdateMaterialDelta()
+  const moves = symGame.moves()
+  let max = -100000
+  let move = ''
+
+
+  for (let i = 0, len = moves.length; i < len; ++i) {
+    symGame.move(moves[i])
+
+    const score = -negaMax(symGame, MAX_DEPTH - 1)
+
+    symGame.undo()
+
+    if(score > max) {
+      max = score
+      move = moves[i]
+    }
+  }
+
+  console.log('best: ', move, max)
+  // let gameTree = buildGameTree(symGame)
+  // let bestMove = getLeastWorstMove(gameTree).move
+
+  // undoUpdateMaterialDelta()
 
   console.timeEnd('Decision Time')
-  console.log(nodesVisited + '/' + nodesPossible)
-  console.log('game tree: ', gameTree)
+  console.log('visited nodes: ', nodesVisited)
+  // console.log('game tree: ', gameTree)
 
 
-  game.move(bestMove)
+  game.move(move)
 
-  if (blackCanCastle){
-    if (bestMove[0] === 'K' || bestMove === 'O-O' || bestMove[0] === 'O-O-O') blackCanCastle = false
-  }
+  // if (blackCanCastle){
+  //   if (bestMove[0] === 'K' || bestMove === 'O-O' || bestMove[0] === 'O-O-O') blackCanCastle = false
+  // }
   board.position(game.fen())
   updateStatus()
 
@@ -90,15 +111,14 @@ const staticCaptureExchange = (symGame, move) => {
 
   const allMoves = symGame.moves()
   const square = move.slice(-2)     //TODO unstable square calculation
-  console.log(square)
+  // console.log(square)
 
   // Moves that go to same square as previous move (must be a capture)
   let moves = allMoves.filter((newMove) => {
     return newMove.slice(-2) === square
   })
 
-  nodesVisited  += moves.length
-  nodesPossible += allMoves.length
+  ++nodesVisited
 
   if (moves.length === 0) {
     return new Node(symGame.fen(), move, store.materialDelta + getPositionalDelta(symGame, allMoves), null)
@@ -135,8 +155,7 @@ const dynamicCaptureExchange = (symGame, move, depth = 0) => {
     moves = getCaptureMovesOnly(allMoves)
   }
 
-  nodesVisited  += moves.length
-  nodesPossible += allMoves.length
+  ++nodesVisited
 
   let responses = {}
 
@@ -180,15 +199,12 @@ const dynamicCaptureExchange = (symGame, move, depth = 0) => {
 
 const buildGameTree = (symGame, alpha = -100000, move = '', depth = 0) => {
 
-  // console.log('...')
-
   const rawMoves    = symGame.moves()
   const allMoves    = organizeMoveByType(rawMoves)
   const captures    = allMoves.captures
   const positional  = allMoves.positional
 
-  nodesVisited  += captures.length
-  nodesPossible += rawMoves.length
+  ++nodesVisited
 
   let fen       = symGame.fen()
   let moves     = captures
@@ -233,7 +249,7 @@ const buildGameTree = (symGame, alpha = -100000, move = '', depth = 0) => {
     return new Node(symGame.fen(), move, (currDelta < branchAlpha) ? currDelta : branchAlpha, responses)
   }
 
-  nodesVisited += rawMoves.length - captures.length
+  ++nodesVisited
 
 
   // Apply razer filter on non-default depths
@@ -267,6 +283,51 @@ const buildGameTree = (symGame, alpha = -100000, move = '', depth = 0) => {
   const currDelta = store.materialDelta + getPositionalDelta(symGame, allMoves)
   return new Node(symGame.fen(), move, (currDelta > 30000) ? currDelta : branchAlpha, responses)
 }
+
+
+
+/*
+
+Note! In order for negaMax to work, your Static Evaluation function must return a score
+relative to the side to being evaluated. (e.g. the simplest score evaluation could be:
+
+score = materialWeight * (numWhitePieces - numBlackPieces) * who2move
+
+//where who2move = 1 for white, and who2move = -1 for black).
+
+*/
+
+// store.materialDelta + getPositionalDelta(symGame, rawMoves)
+
+function negaMax(symGame, depth, alpha = -100000, beta = 100000, color = -1) {
+  ++nodesVisited
+  if (depth === 0) return (store.materialDelta * color) + getPositionalDelta(symGame, symGame.moves())
+
+  let bestScore = -100000
+
+  //TODO optimize via move ordering
+  const moves = symGame.moves().sort((m1, m2) => m1.indexOf('x') <= m2.indexOf('x'))
+
+  for (let i = 0, len = moves.length; i < len; ++i) {
+    if (moves[i].indexOf('x') > -1) updateMaterialDelta(symGame, moves[i])
+    symGame.move(moves[i])
+
+    score = -negaMax(symGame, depth - 1, -beta, -alpha, -color)
+
+    symGame.undo()
+    if (moves[i].indexOf('x') > -1) undoUpdateMaterialDelta()
+
+    bestScore = Math.max(bestScore, score)
+    alpha     = Math.max(alpha, score)
+
+    if (alpha >= beta) break
+  }
+
+  return bestScore
+}
+
+
+
 
 
 /*
