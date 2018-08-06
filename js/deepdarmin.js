@@ -410,7 +410,7 @@ var onSnapEnd = function () {
 
 
 let board
-let game = new Chess(STARTING_POSITION)
+let game = new Chess()
 let statusEl = $('#status')
 let fenEl = $('#fen')
 let pgnEl = $('#pgn')

@@ -366,15 +366,3 @@ function razorFilter(symGame, moves, alpha){
 
   return moves2
 }
-
-
-
-
-
-
-function Node (fen, move, delta, responses) {
-  this.fen = fen
-  this.move = move
-  this.delta = delta
-  this.responses = responses
-}
