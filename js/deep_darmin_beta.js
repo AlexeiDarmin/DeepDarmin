@@ -1,8 +1,14 @@
 /*
 Notes:
 
-  .moves() is computationally intensive so call it sparingly.
-  Board evaluation with negamax takes 60% of the computation time
+  - .moves() is computationally intensive so call it sparingly.
+    - cached moves for FENs are read from cache approximately 45% of the time
+  - Board evaluation with negamax takes 60% of the computation time
+    - Board evaluation is only called on leaf nodes with MCTS which should be a performance boost
+    - Question: Would running a finate state machine to track material value per move be computationally faster than only evaluating on leaf nodes?
+  - Use move.length >= 4 instead of move.includes('x') to sort capturing moves
+
+
 
 Colors:
   1 is black
@@ -18,7 +24,7 @@ class Board {
   // game = null
 
   constructor(option) {
-    
+
     this.IN_PROGRESS = -1
     this.DRAW = 0
     this.P1 = 1
@@ -70,19 +76,48 @@ class Board {
 
     const isMaterialDifference = player2Score !== player1Score
 
-    if (isMaterialDifference) {
-      return player2Score > player1Score ? 1 : 2
-    }
+    // if (isMaterialDifference) {
+    // return player2Score > player1Score ? 1 : 2
+    // }
+    debugger
     let fen2 = this.game.fen()
-    if (fen2.includes('w')) fen2 = fen2.replace("w", "b")
-    if (fen2.includes('b')) fen2 = fen2.replace("b", "w")
+    if (fen2.includes(' w ')) fen2 = fen2.replace(" w ", " b ")
+    if (fen2.includes(' b ')) fen2 = fen2.replace(" b ", " w ")
     const symGame = new Chess(fen2)
 
-    const player1Moves = this.game.moves()
-    const player2Moves = symGame.moves()
+    const player2Moves = getMoves(this.game)
+    const player1Moves = getMoves(symGame)
 
-    return player2Moves > player1Moves ? 1 : 2
+    // console.log('p1, p2', player1Moves.length, player2Moves.length)
+    // Value mobility
+    player1Score += player1Moves.length / 10
+    player2Score += player2Moves.length / 10
 
+    return player2Score > player1Score ? 1 : 2
+    // return player2Moves > player1Moves ? 1 : 2
+  }
+
+  getSquare(moveMade) {
+    const index = moveMade.split('').findIndex(c => ['1', '2', '3', '4', '5', '6', '7', '8'].includes(c))
+    debugger
+    return moveMade.slice(index - 1, index + 1)
+  }
+  resolveDynamicExchanges(moveMade) {
+    // const move = this.getSquare(moveMade)
+    // console.log(move)
+    let count = 0
+    while (count < 6) {
+      const offensiveMoves = getMoves(this.game).filter(m => {
+        const lastChar = moves[moves.length - 1]
+        return m.length > 3 || lastChar === '+' || lastChar === '#'
+      })
+      if (offensiveMoves.length === 0) return
+
+      const nextMove = offensiveMoves[Math.floor(Math.random() * offensiveMoves.length)]
+      if (!nextMove) return
+      this.game.move(nextMove)
+      count++
+    }
   }
 
   // Returns all valid moves for this board
@@ -103,8 +138,24 @@ class Board {
 }
 
 const moveCache = {}
+let cached = 0
+let uncached = 0
+// Checks cache for move, uses that
+// If no entry in cache then generates list of moves and populates cache
+function getMoves(game) {
+  const fen = game.fen()
+  if (moveCache[fen]) {
+    cached++
+    return moveCache[fen]
+  }
+  else {
+    uncached++
+    const moves = game.moves()
+    moveCache[fen] = moves
+    return moves
+  }
 
-
+}
 
 const POSITIONS = {
   DEFAULT: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
@@ -134,7 +185,7 @@ const makeMove = function () {
   const fen = buildValidFen(board, 'b')
   const symGame = new Board(fen)
 
-  
+
   const moves = symGame.game.moves()
   let move = moves[0]
   if (moves.length > 1) {
@@ -143,7 +194,7 @@ const makeMove = function () {
     game.move(move)
     move = new Board(game.fen())
   }
-
+  console.log('cached / uncached', cached, uncached, cached / uncached * 100 + '%')
   console.timeEnd('Decision Time')
   // debugger
   game = new Chess(move.game.fen())

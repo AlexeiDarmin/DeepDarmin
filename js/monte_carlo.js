@@ -67,7 +67,7 @@ class Node {
 }
 
 class Tree {
-  // root;
+  // root
 
   constructor(n) {
     if (n) this.root = n
@@ -84,10 +84,10 @@ class Tree {
 }
 
 class State {
-  // board;
-  // playerNo;
-  // visitCount;
-  // winScore;
+  // board
+  // playerNo
+  // visitCount
+  // winScore
 
   constructor(state) {
     this.board = new Board(state ? state.board : null)
@@ -153,7 +153,7 @@ class State {
     let hasCapture = possibleMoves.find(m => m.includes('x'))
 
     // Apply move ordering to consider captures frequently
-    if (hasCapture && Math.random() > 0.25) {
+    if (hasCapture && Math.random() > 0.80) {
       possibleMoves = possibleMoves.filter(m => m.includes('x') || m.includes('+'))
     }
 
@@ -162,6 +162,8 @@ class State {
     const randomMove = possibleMoves[Math.floor((Math.random() * possibleMoves.length))]
     
     this.board.performMove(this.playerNo, randomMove)
+    
+    return randomMove
   }
   togglePlayer() {
     this.playerNo = 3 - this.playerNo
@@ -174,40 +176,40 @@ class MonteCarloTreeSearch {
     // const end = (new Date()).getTime() + 100
     const end = 2
 
-    const opponent = 3 - playerNo;
-    let tree = new Tree();
-    const rootNode = tree.getRoot();
-    rootNode.getState().setBoard(board);
-    rootNode.getState().setPlayerNo(opponent);
+    const opponent = 3 - playerNo
+    let tree = new Tree()
+    const rootNode = tree.getRoot()
+    rootNode.getState().setBoard(board)
+    rootNode.getState().setPlayerNo(opponent)
 
 
     // while ((new Date()).getTime() < end) {
     let count = 0
-    while (count < 175) {
-      let promisingNode = this.selectPromisingNode(rootNode);
+    while (count < 500) {
+      let promisingNode = this.selectPromisingNode(rootNode)
       if (promisingNode.getState().getBoard().checkStatus() === board.IN_PROGRESS) {
-        this.expandNode(promisingNode);
+        this.expandNode(promisingNode)
       }
-      let nodeToExplore = promisingNode;
+      let nodeToExplore = promisingNode
       if (promisingNode.getChildArray().length > 0) {
-        nodeToExplore = promisingNode.getRandomChildNode();
+        nodeToExplore = promisingNode.getRandomChildNode()
       }
-      const playoutResult = this.simulateRandomPlayout(nodeToExplore, opponent, playerNo);
-      this.backPropogation(nodeToExplore, playoutResult);
+      const playoutResult = this.simulateRandomPlayout(nodeToExplore, opponent, playerNo)
+      this.backPropogation(nodeToExplore, playoutResult)
       count++
     }
-    const winnerNode = rootNode.getChildWithMaxScore();
-    tree.setRoot(winnerNode);
+    const winnerNode = rootNode.getChildWithMaxScore()
+    tree.setRoot(winnerNode)
     return winnerNode.getState().getBoard()
   }
 
   selectPromisingNode(rootNode) {
-    let node = rootNode;
+    let node = rootNode
 
     while (node.getChildArray().length !== 0) {
-      node = UCTInstance.findBestNodeWithUCT(node);
+      node = UCTInstance.findBestNodeWithUCT(node)
     }
-    return node;
+    return node
   }
 
   // Populates the childArray of node
@@ -218,41 +220,43 @@ class MonteCarloTreeSearch {
       newNode.setParent(node)
       newNode.getState().setPlayerNo(node.getState().getOpponent())
       node.getChildArray().push(newNode)
-    });
+    })
   }
 
   // If nodeToExplore is a winning board for playerNo, then add WIN_SCORE to total winScore for playerNo.
   backPropogation(nodeToExplore, playerNo) {
-    let tempNode = nodeToExplore;
+    let tempNode = nodeToExplore
     while (tempNode != null) {
-      tempNode.getState().incrementVisit();
+      tempNode.getState().incrementVisit()
       if (tempNode.getState().getPlayerNo() == playerNo) {
-        tempNode.getState().addScore(10);
+        tempNode.getState().addScore(10)
       } 
-      tempNode = tempNode.getParent();
+      tempNode = tempNode.getParent()
     }
   }
 
   // Extend this function to play out only a partial of the game.
   // CheckStatus should also return who's ahead?
   simulateRandomPlayout(node, opponent, playerNo) {
-    let tempNode = new Node(node);
-    let tempState = tempNode.getState();
-    let boardStatus = tempState.getBoard().checkStatus();
+    let tempNode = new Node(node)
+    let tempState = tempNode.getState()
+    let boardStatus = tempState.getBoard().checkStatus()
     if (boardStatus === opponent) {
-      tempNode.getParent().getState().setWinScore(Number.MIN_SAFE_INTEGER);
-      return boardStatus;
+      tempNode.getParent().getState().setWinScore(Number.MIN_SAFE_INTEGER)
+      return boardStatus
     }
     let count = 0
-    while (boardStatus == tempState.getBoard().IN_PROGRESS && count < 5) {
-      tempState.togglePlayer();
-      tempState.randomPlay();
-      boardStatus = tempState.getBoard().checkStatus();
+    let moveMade
+    while (boardStatus == tempState.getBoard().IN_PROGRESS && count < 3) {
+      tempState.togglePlayer()
+      moveMade = tempState.randomPlay()
+      boardStatus = tempState.getBoard().checkStatus()
       count++
     }
+    tempState.getBoard().resolveDynamicExchanges(moveMade)
     if (boardStatus === -1) boardStatus = tempState.getBoard().getMaterialStatus(playerNo)
-    console.log('boardStatus;', boardStatus)
-    return boardStatus;
+    // console.log('boardStatus', boardStatus)
+    return boardStatus
   }
 }
 
@@ -261,7 +265,7 @@ class UCT {
   construtor() { }
   uctValue(totalVisit, nodeWinScore, nodeVisit) {
     if (nodeVisit == 0) {
-      return Number.MAX_SAFE_INTEGER;
+      return Number.MAX_SAFE_INTEGER
     }
     // 1.41 is an approximation of Math.sqrt(2) which is exploration parameter
     return (nodeWinScore / nodeVisit) + Math.sqrt(2) * Math.sqrt(Math.log(totalVisit) / nodeVisit)
@@ -279,5 +283,85 @@ class UCT {
     return node.getChildArray()[index]
   }
 }
+
+let moveDict = ['ab', 'NxE4', 'h4']
+let moves = []
+
+let count = 10000
+
+for (let i = 0; i < count; ++i) {
+  moves.push(moveDict[Math.floor(Math.random() * 3)])
+}
+
+console.log(moves)
+
+let t1 = performance.now()
+let includedMoves = []
+
+for (let i = 0; i < count; ++i) {
+  if (moves[i].includes('x') || moves[i].includes('+') || moves[i].includes('#')) {
+    includedMoves.push(moves[i])
+  }
+}
+let t2 = performance.now()
+
+console.log('time: ', t2 - t1)
+
+
+let t11 = performance.now()
+let includedMoves2 = []
+
+for (let i = 0; i < count; ++i) {
+  if (moves[i].length > 3 || moves[moves.length - 1] === '+' || moves[moves.length - 1] === '#') {
+    includedMoves2.push(moves[i])
+  }
+}
+let t22 = performance.now()
+
+console.log('time: ', t22 - t11)
+
+let t111 = performance.now()
+let includedMoves3 = []
+
+for (let i = 0; i < count; ++i) {
+  if (moves[i].indexOf('x') !== -1 || moves[i].indexOf('+') !== -1 ||moves[i].indexOf('#') !== -1) {
+    includedMoves3.push(moves[i])
+  }
+}
+let t222 = performance.now()
+
+
+console.log('time: ', t222 - t111)
+
+
+let t1111 = performance.now()
+let includedMoves4 = []
+
+for (let i = 0; i < count; ++i) {
+  if (moves[i].charAt(1) == 'x' || moves[i].charAt(moves.length - 1) == '+' || moves[i].charAt(moves.length - 1) == '#') {
+    includedMoves4.push(moves[i])
+  }
+}
+let t2222 = performance.now()
+
+
+console.log('time: ', t2222 - t1111)
+
+
+
+let t11111 = performance.now()
+let includedMoves5 = []
+
+for (let i = 0; i < count; ++i) {
+  const lastChar = moves[moves.length - 1]
+  if (moves[i].length > 3 || lastChar === '+' || lastChar === '#') {
+    includedMoves5.push(moves[i])
+  }
+}
+let t22222 = performance.now()
+
+console.log('time: ', t22222 - t11111)
+
+
 
 const UCTInstance = new UCT()
