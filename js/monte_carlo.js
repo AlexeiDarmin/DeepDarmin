@@ -7,7 +7,6 @@ class Node {
     const initializingFromNothing = !dynamicInitializer
 
     if (initializingFromNothing) {
-      console.log('from nothing!')
       this.state = new State()
       this.parent = null
       this.childArray = []
@@ -37,7 +36,7 @@ class Node {
         child = c
       }
     })
-    
+
     return child
   }
 
@@ -70,13 +69,11 @@ class State {
   // winScore
 
   constructor(state) {
-    if (state !== undefined && typeof state !== 'object' && isNaN(state)) debugger
-
     if (state) {
       this.board = new Board(state.board)
       this.playerNo = state.playerNo
       const fen = this.board.game.fen()
-      
+
       if (transpotionTable[fen]) {
         cachedTT++
         this.visitCount = transpotionTable[fen].visitCount
@@ -134,9 +131,9 @@ class State {
     }
 
     const randomMove = possibleMoves[Math.floor((Math.random() * possibleMoves.length))]
-    
+
     this.board.performMove(this.playerNo, randomMove)
-    
+
     return randomMove
   }
   togglePlayer() {
@@ -153,7 +150,7 @@ class MonteCarloTreeSearch {
     const opponent = 3 - playerNo
     let tree = new Tree()
     const rootNode = tree.root
-  
+
     rootNode.state.board = board
     rootNode.state.playerNo = opponent
 
@@ -186,9 +183,8 @@ class MonteCarloTreeSearch {
     let node = rootNode
 
     while (node.childArray && node.childArray.length !== 0) {
-      node = UCTInstance.findBestNodeWithUCT(node)
+      node = findBestNodeWithUCT(node)
     }
-    if (!node.state.board) debugger
     return node
   }
 
@@ -200,7 +196,6 @@ class MonteCarloTreeSearch {
       newNode.parent = node
       newNode.state.playerNo = node.state.getOpponent()
       node.childArray.push(newNode)
-      if (!newNode.state.board) debugger
     })
   }
 
@@ -211,7 +206,7 @@ class MonteCarloTreeSearch {
       tempNode.state.visitCount++
       if (tempNode.state.playerNo == playerNo) {
         tempNode.state.addScore(10)
-      } 
+      }
       tempNode = tempNode.parent
     }
   }
@@ -235,115 +230,33 @@ class MonteCarloTreeSearch {
       count++
     }
     tempState.board.resolveDynamicExchanges(moveMade)
-    if (boardStatus === -1) boardStatus = tempState.board.getMaterialStatus(playerNo)
+    if (boardStatus === -1) boardStatus = tempState.board.evaluateBoard()
     // console.log('boardStatus', boardStatus)
     return boardStatus
   }
 }
 
 
-class UCT {
-  construtor() { }
-  uctValue(totalVisit, nodeWinScore, nodeVisit) {
-    if (nodeVisit == 0) {
-      return Number.MAX_SAFE_INTEGER
-    }
-    // 1.41 is an approximation of Math.sqrt(2) which is exploration parameter
-    return (nodeWinScore / nodeVisit) + Math.sqrt(2) * Math.sqrt(Math.log(totalVisit) / nodeVisit)
-  }
 
-  findBestNodeWithUCT(node) {
-    let parentVisit = node.state.visitCount
-    let scoreList = node
-      .childArray
-      .map(c => this.uctValue(parentVisit, c.state.winScore, c.state.visitCount))
-      .filter(n => !isNaN(n)) // sometimes the uct is NaN
-    
-    // room for improvement here
-    const maxScore = Math.max(...scoreList)
-    const index = scoreList.indexOf(maxScore)
-
-    return node.childArray[index]
+// Functions to calculate UCT
+function uctValue(totalVisit, nodeWinScore, nodeVisit) {
+  if (nodeVisit == 0) {
+    return Number.MAX_SAFE_INTEGER
   }
+  // 1.41 is an approximation of Math.sqrt(2) which is exploration parameter
+  return (nodeWinScore / nodeVisit) + Math.sqrt(2) * Math.sqrt(Math.log(totalVisit) / nodeVisit)
 }
 
-let moveDict = ['ab', 'NxE4', 'h4']
-let moves = []
+function findBestNodeWithUCT(node) {
+  let parentVisit = node.state.visitCount
+  let scoreList = node
+    .childArray
+    .map(c => uctValue(parentVisit, c.state.winScore, c.state.visitCount))
+    .filter(n => !isNaN(n)) // sometimes the uct is NaN
 
-let count = 10000
+  // room for improvement here
+  const maxScore = Math.max(...scoreList)
+  const index = scoreList.indexOf(maxScore)
 
-for (let i = 0; i < count; ++i) {
-  moves.push(moveDict[Math.floor(Math.random() * 3)])
+  return node.childArray[index]
 }
-
-console.log(moves)
-
-let t1 = performance.now()
-let includedMoves = []
-
-for (let i = 0; i < count; ++i) {
-  if (moves[i].includes('x') || moves[i].includes('+') || moves[i].includes('#')) {
-    includedMoves.push(moves[i])
-  }
-}
-let t2 = performance.now()
-
-console.log('time: ', t2 - t1)
-
-
-let t11 = performance.now()
-let includedMoves2 = []
-
-for (let i = 0; i < count; ++i) {
-  if (moves[i].length > 3 || moves[moves.length - 1] === '+' || moves[moves.length - 1] === '#') {
-    includedMoves2.push(moves[i])
-  }
-}
-let t22 = performance.now()
-
-console.log('time: ', t22 - t11)
-
-let t111 = performance.now()
-let includedMoves3 = []
-
-for (let i = 0; i < count; ++i) {
-  if (moves[i].indexOf('x') !== -1 || moves[i].indexOf('+') !== -1 ||moves[i].indexOf('#') !== -1) {
-    includedMoves3.push(moves[i])
-  }
-}
-let t222 = performance.now()
-
-
-console.log('time: ', t222 - t111)
-
-
-let t1111 = performance.now()
-let includedMoves4 = []
-
-for (let i = 0; i < count; ++i) {
-  if (moves[i].charAt(1) == 'x' || moves[i].charAt(moves.length - 1) == '+' || moves[i].charAt(moves.length - 1) == '#') {
-    includedMoves4.push(moves[i])
-  }
-}
-let t2222 = performance.now()
-
-
-console.log('time: ', t2222 - t1111)
-
-
-let t11111 = performance.now()
-let includedMoves5 = []
-
-for (let i = 0; i < count; ++i) {
-  const lastChar = moves[moves.length - 1]
-  if (moves[i].length > 3 || lastChar === '+' || lastChar === '#') {
-    includedMoves5.push(moves[i])
-  }
-}
-let t22222 = performance.now()
-
-console.log('time: ', t22222 - t11111)
-
-
-
-const UCTInstance = new UCT()

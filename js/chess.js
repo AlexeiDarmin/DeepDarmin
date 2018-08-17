@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Jeff Hlywa (jhlywa@gmail.com)
+ * Copyright (c) 2017, Jeff Hlywa (jhlywa@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,7 +28,7 @@
 /* minified license below  */
 
 /* @license
- * Copyright (c) 2016, Jeff Hlywa (jhlywa@gmail.com)
+ * Copyright (c) 2017, Jeff Hlywa (jhlywa@gmail.com)
  * Released under the BSD license
  * https://github.com/jhlywa/chess.js/blob/master/LICENSE
  */
@@ -172,7 +172,11 @@ var Chess = function(fen) {
     load(fen);
   }
 
-  function clear() {
+  function clear(keep_headers) {
+    if (typeof keep_headers === 'undefined') {
+      keep_headers = false;
+    }
+
     board = new Array(128);
     kings = {w: EMPTY, b: EMPTY};
     turn = WHITE;
@@ -181,7 +185,7 @@ var Chess = function(fen) {
     half_moves = 0;
     move_number = 1;
     history = [];
-    header = {};
+    if (!keep_headers) header = {};
     update_setup(generate_fen());
   }
 
@@ -189,7 +193,11 @@ var Chess = function(fen) {
     load(DEFAULT_POSITION);
   }
 
-  function load(fen) {
+  function load(fen, keep_headers) {
+    if (typeof keep_headers === 'undefined') {
+      keep_headers = false;
+    }
+
     var tokens = fen.split(/\s+/);
     var position = tokens[0];
     var square = 0;
@@ -198,7 +206,7 @@ var Chess = function(fen) {
       return false;
     }
 
-    clear();
+    clear(keep_headers);
 
     for (var i = 0; i < position.length; i++) {
       var piece = position.charAt(i);
@@ -1290,6 +1298,26 @@ var Chess = function(fen) {
       return generate_fen();
     },
 
+    board: function() {
+      var output = [],
+          row    = [];
+
+      for (var i = SQUARES.a8; i <= SQUARES.h1; i++) {
+        if (board[i] == null) {
+          row.push(null)
+        } else {
+          row.push({type: board[i].type, color: board[i].color})
+        }
+        if ((i + 1) & 0x88) {
+          output.push(row);
+          row = []
+          i += 8;
+        }
+      }
+
+      return output;
+    },
+
     pgn: function(options) {
       /* using the specification from http://www.chessclub.com/help/PGN-spec
        * example for html usage: .pgn({ max_width: 72, newline_char: "<br />" })
@@ -1425,18 +1453,17 @@ var Chess = function(fen) {
       var newline_char = (typeof options === 'object' &&
                           typeof options.newline_char === 'string') ?
                           options.newline_char : '\r?\n';
-      var regex = new RegExp('^(\\[(.|' + mask(newline_char) + ')*\\])' +
-                             '(' + mask(newline_char) + ')*' +
-                             '1.(' + mask(newline_char) + '|.)*$', 'g');
 
-      /* get header part of the PGN file */
-      var header_string = pgn.replace(regex, '$1');
+      // RegExp to split header. Takes advantage of the fact that header and movetext
+      // will always have a blank line between them (ie, two newline_char's).
+      // With default newline_char, will equal: /^(\[((?:\r?\n)|.)*\])(?:\r?\n){2}/
+      var header_regex = new RegExp('^(\\[((?:' + mask(newline_char) + ')|.)*\\])' +
+                              '(?:' + mask(newline_char) + '){2}');
 
-      /* no info part given, begins with moves */
-      if (header_string[0] !== '[') {
-        header_string = '';
-      }
+      // If no header given, begin with moves.
+      var header_string = header_regex.test(pgn) ? header_regex.exec(pgn)[1] : '';
 
+      // Put the board in the starting position
       reset();
 
       /* parse PGN header */
@@ -1448,7 +1475,7 @@ var Chess = function(fen) {
       /* load the starting position indicated by [Setup '1'] and
       * [FEN position] */
       if (headers['SetUp'] === '1') {
-          if (!(('FEN' in headers) && load(headers['FEN']))) {
+          if (!(('FEN' in headers) && load(headers['FEN'], true ))) { // second argument to load: don't clear the headers
             return false;
           }
       }
@@ -1460,7 +1487,7 @@ var Chess = function(fen) {
       ms = ms.replace(/(\{[^}]+\})+?/g, '');
 
       /* delete recursive annotation variations */
-      var rav_regex = /(\([^\(\)]+\))+?/g
+      var rav_regex = /(\([^\(\)]+\))+?/g;
       while (rav_regex.test(ms)) {
         ms = ms.replace(rav_regex, '');
       }

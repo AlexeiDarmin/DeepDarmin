@@ -15,6 +15,15 @@ Colors:
   2 is white
 */
 
+const PieceTypes = {
+  Pawn: 'p',
+  Bishop: 'b',
+  Knight: 'n',
+  Rook: 'r',
+  Queen: 'q',
+  King: 'k'
+}
+
 
 class Board {
   // IN_PROGRESS
@@ -55,23 +64,76 @@ class Board {
     return -1
   }
 
-  getMaterialStatus(player) {
+
+  evaluatePosition() {
+    const board = this.game.board()
+
+    let p1PositionScore = 0
+    let p2PositionScore = 0
+    for (let r = 0; r < 7; ++r) {
+      debugger
+      for (let c = 0; c < 7; ++c) {
+        if (board[r][c]) { 
+          if (board[r][c].type === PieceTypes.Pawn) {
+            if (board[r][c].color === 'w') {
+              p1PositionScore += pawnAdj[r*c]
+            } else {
+              p2PositionScore += pawnAdj[(7 - r) * (7 - c)]
+            }
+          } else if (board[r][c].type === PieceTypes.Knight) {
+            if (board[r][c].color === 'w') {
+              p1PositionScore += knightAdj[r*c]
+            } else {
+              p2PositionScore += knightAdj[(7 - r) * (7 - c)]
+            }
+          } else if (board[r][c].type === PieceTypes.Bishop) {
+            if (board[r][c].color === 'w') {
+              p1PositionScore += bishopAdj[r*c]
+            } else {
+              p2PositionScore += bishopAdj[(7 - r) * (7 - c)]
+            }
+          } else if (board[r][c].type === PieceTypes.Rook) {
+            if (board[r][c].color === 'w') {
+              p1PositionScore += rookAdj[r*c]
+            } else {
+              p2PositionScore += rookAdj[(7 - r) * (7 - c)]
+            }
+          } else if (board[r][c].type === PieceTypes.King) {
+            if (board[r][c].color === 'w') {
+              p1PositionScore += kingAdj[r*c]
+            } else {
+              p2PositionScore += kingAdj[(7 - r) * (7 - c)]
+            }
+          }
+        }
+      }
+    }
+
+    console.log('pawn score', p1PositionScore, p2PositionScore)
+
+    return {
+      p1PositionScore,
+      p2PositionScore
+    }
+  }
+
+  evaluateBoard() {
     const fen = this.game.fen().split(' ')[0]
 
     let player1Score = 0
     let player2Score = 0
     for (let i = 0; i < fen.length; ++i) {
       // room for performance improvement
-      if (fen[i] === 'P') player1Score += 1
-      if (fen[i] === 'N') player1Score += 3
-      if (fen[i] === 'B') player1Score += 3
-      if (fen[i] === 'R') player1Score += 5
-      if (fen[i] === 'Q') player1Score += 9
-      if (fen[i] === 'p') player2Score += 1
-      if (fen[i] === 'n') player2Score += 3
-      if (fen[i] === 'b') player2Score += 3
-      if (fen[i] === 'r') player2Score += 5
-      if (fen[i] === 'q') player2Score += 9
+      if (fen[i] === 'P') player1Score += 100
+      if (fen[i] === 'N') player1Score += 300
+      if (fen[i] === 'B') player1Score += 300
+      if (fen[i] === 'R') player1Score += 500
+      if (fen[i] === 'Q') player1Score += 900
+      if (fen[i] === 'p') player2Score += 100
+      if (fen[i] === 'n') player2Score += 300
+      if (fen[i] === 'b') player2Score += 300
+      if (fen[i] === 'r') player2Score += 500
+      if (fen[i] === 'q') player2Score += 900
     }
 
     const isMaterialDifference = player2Score !== player1Score
@@ -90,8 +152,13 @@ class Board {
 
     // console.log('p1, p2', player1Moves.length, player2Moves.length)
     // Value mobility
-    player1Score += player1Moves.length / 10
-    player2Score += player2Moves.length / 10
+    player1Score += player1Moves.length * 10
+    player2Score += player2Moves.length * 10
+    
+    const { p1PositionScore, p2PositionScore } = this.evaluatePosition()
+
+    player1Score += p1PositionScore
+    player2Score += p2PositionScore
 
     return player2Score > player1Score ? 1 : 2
     // return player2Moves > player1Moves ? 1 : 2
@@ -104,7 +171,6 @@ class Board {
   }
   resolveDynamicExchanges(moveMade) {
     // const move = this.getSquare(moveMade)
-    // console.log(move)
     let count = 0
     while (count < 2) {
       const offensiveMoves = getDecisiveMoves(getMoves(this.game))
@@ -190,7 +256,6 @@ const makeMove = function () {
 
   const fen = buildValidFen(board, 'b')
   const symGame = new Board(fen)
-
 
   const moves = symGame.game.moves()
   let move = moves[0]
