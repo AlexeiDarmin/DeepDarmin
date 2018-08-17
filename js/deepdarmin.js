@@ -39,7 +39,8 @@ const POSITIONS = {
   QUEEN_ONLY:     'COMING SOON',
   TRAPPED_BISHOP: 'r1bqkbnr/1ppppppp/p7/2B5/2PPP3/5N2/1R3PPP/1N1QKB1R w KQkq - 0 1',
   TEMP:           'rnb1k1nr/ppppqppp/4p3/2b5/3P4/P7/1P1BPPPP/RN1QKBNR w KQkq - 0 1',
-  ADVANCED:       'rnb1k1nr/2pp1ppp/4p3/ppq5/8/P1N1P3/1P1B1PPP/R2QKBNR w KQkq - 0 1'
+  ADVANCED:       'rnb1k1nr/2pp1ppp/4p3/ppq5/8/P1N1P3/1P1B1PPP/R2QKBNR w KQkq - 0 1',
+  EXCHANGE:       'r1bqkb1r/1pp1npp1/p1np4/4P2p/5P2/P1N2N2/1PP1P1PP/R1BQKB1R w KQkq - 0 2'
 }
 
 // change this to change starting position
@@ -409,15 +410,17 @@ var onSnapEnd = function () {
 
 
 
+console.log('hello', POSITIONS.EXCHANGE)
+
 let board
-let game = new Chess()
+let game = new Chess(POSITIONS.EXCHAGNE)
 let statusEl = $('#status')
 let fenEl = $('#fen')
 let pgnEl = $('#pgn')
 
 var cfg = {
   draggable: true,
-  position: STARTING_POSITION,
+  position: POSITIONS.EXCHANGE,
   onDragStart: onDragStart,
   onDrop: onDrop,
   onSnapEnd: onSnapEnd

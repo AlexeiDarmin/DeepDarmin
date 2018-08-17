@@ -15,6 +15,24 @@ Colors:
   2 is white
 */
 
+
+const POSITIONS = {
+  DEFAULT:        'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+  MATE_IN_ONE:    'r3k1nr/p1pp1ppp/bpnbp3/7q/2PPN3/4PN2/PP1BBPPP/R2Q1RK1 w KQkq - 0 1',
+  MATE_IN_TWO:    'COMING SOON',
+  MATE_IN_THREE:  'COMING SOON',
+  MATE_THREAT:    '2k2r2/1pp2pp1/2q2n2/2P2bNp/1PBR1B2/Q1K2PP1/2r5/8 w KQ - 0 1',
+  ROOK_ONLY:      'rk6/8/8/8/8/8/K7/8 w KQkq - 0 1',
+  TWO_ROOKS:      'rkr5/8/8/8/8/8/7K/8 w KQkq - 0 1',
+  QUEEN_ONLY:     'COMING SOON',
+  TRAPPED_BISHOP: 'r1bqkbnr/1ppppppp/p7/2B5/2PPP3/5N2/1R3PPP/1N1QKB1R w KQkq - 0 1',
+  TEMP:           'rnb1k1nr/ppppqppp/4p3/2b5/3P4/P7/1P1BPPPP/RN1QKBNR w KQkq - 0 1',
+  ADVANCED:       'rnb1k1nr/2pp1ppp/4p3/ppq5/8/P1N1P3/1P1B1PPP/R2QKBNR w KQkq - 0 1',
+  EXCHANGE:       'r1bqkb1r/1pp1npp1/p1np4/4P2p/5P2/P1N2N2/1PP1P1PP/R1BQKB1R w KQkq - 0 2'
+}
+
+
+
 const PieceTypes = {
   Pawn: 'p',
   Bishop: 'b',
@@ -57,7 +75,7 @@ class Board {
     const turn = this.getPlayerTurn()
 
     // checkmate?
-    if (this.game.in_checkmate() === true) return turn === 'w' ? 1 : 2
+    if (this.game.in_checkmate() === true) return turn === 'w' ? 2 : 1
     // draw?
     else if (game.in_draw() === true) return 0
     // game still on
@@ -108,8 +126,6 @@ class Board {
         }
       }
     }
-
-    console.log('pawn score', p1PositionScore, p2PositionScore)
 
     return {
       p1PositionScore,
@@ -172,11 +188,13 @@ class Board {
   resolveDynamicExchanges(moveMade) {
     // const move = this.getSquare(moveMade)
     let count = 0
-    while (count < 2) {
+    while (count < 1) {
+      debugger
       const offensiveMoves = getDecisiveMoves(getMoves(this.game))
       if (offensiveMoves.length === 0) return
 
-      const nextMove = offensiveMoves[Math.floor(Math.random() * offensiveMoves.length)]
+      const mateMove = offensiveMoves.find(m => m.slice(-1) === '#')
+      const nextMove = mateMove !== -1 ? mateMove : offensiveMoves[Math.floor(Math.random() * offensiveMoves.length)]
       if (!nextMove) return
       this.game.move(nextMove)
       count++
@@ -227,20 +245,6 @@ function getMoves(game) {
     return moves
   }
 
-}
-
-const POSITIONS = {
-  DEFAULT: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-  MATE_IN_ONE: 'r3k1nr/p1pp1ppp/bpnbp3/7q/2PPN3/4PN2/PP1BBPPP/R2Q1RK1 w KQkq - 0 1',
-  MATE_IN_TWO: 'COMING SOON',
-  MATE_IN_THREE: 'COMING SOON',
-  MATE_THREAT: '2k2r2/1pp2pp1/2q2n2/2P2bNp/1PBR1B2/Q1K2PP1/2r5/8 w KQ - 0 1',
-  ROOK_ONLY: 'rk6/8/8/8/8/8/K7/8 w KQkq - 0 1',
-  TWO_ROOKS: 'rkr5/8/8/8/8/8/7K/8 w KQkq - 0 1',
-  QUEEN_ONLY: 'COMING SOON',
-  TRAPPED_BISHOP: 'r1bqkbnr/1ppppppp/p7/2B5/2PPP3/5N2/1R3PPP/1N1QKB1R w KQkq - 0 1',
-  TEMP: 'rnb1k1nr/ppppqppp/4p3/2b5/3P4/P7/1P1BPPPP/RN1QKBNR w KQkq - 0 1',
-  ADVANCED: 'rnb1k1nr/2pp1ppp/4p3/ppq5/8/P1N1P3/1P1B1PPP/R2QKBNR w KQkq - 0 1'
 }
 
 let nodesVisited = 0
@@ -357,14 +361,14 @@ var onSnapEnd = function () {
 
 
 let board
-let game = new Chess(POSITIONS.DEFAULT)
+let game = new Chess(POSITIONS.MATE_IN_ONE)
 let statusEl = $('#status')
 let fenEl = $('#fen')
 let pgnEl = $('#pgn')
 
 var cfg = {
   draggable: true,
-  position: POSITIONS.DEFAULT,
+  position: POSITIONS.MATE_IN_ONE,
   onDragStart: onDragStart,
   onDrop: onDrop,
   onSnapEnd: onSnapEnd

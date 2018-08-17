@@ -229,10 +229,12 @@ class MonteCarloTreeSearch {
       boardStatus = tempState.board.checkStatus()
       count++
     }
-    tempState.board.resolveDynamicExchanges(moveMade)
-    if (boardStatus === -1) boardStatus = tempState.board.evaluateBoard()
+    if (boardStatus === -1) {
+      tempState.board.resolveDynamicExchanges(moveMade)
+      boardStatus = tempState.board.evaluateBoard()
+    }
     // console.log('boardStatus', boardStatus)
-    return boardStatus
+    return tempState.board.checkStatus()
   }
 }
 
