@@ -1,15 +1,13 @@
-// import board, position
+// store all nodes with fen keys for a transpotion table
+const nodeCache = {}
 
 class Node {
-  // state
-  // parent
-  // childArray
-
   constructor(dynamicInitializer) {
 
     const initializingFromNothing = !dynamicInitializer
 
     if (initializingFromNothing) {
+      console.log('from nothing!')
       this.state = new State()
       this.parent = null
       this.childArray = []
@@ -30,28 +28,10 @@ class Node {
     }
   }
 
-  getState() {
-    return this.state
-  }
-  getParent() {
-    return this.parent
-  }
-  getChildArray() {
-    return this.childArray
-  }
-  setBoard(board) {
-    this.state.setBoard(board)
-  }
-  setPlayerNo(playerNo) {
-    this.state.setPlayerNo(playerNo)
-  }
-  setParent(node) {
-    this.parent = node
-  }
   getChildWithMaxScore() {
     let maxScore = Number.MIN_SAFE_INTEGER
     let child
-    this.getChildArray().forEach(c => {
+    this.childArray.forEach(c => {
       if (c.state.winScore > maxScore) {
         maxScore = c.state.winScore
         child = c
@@ -75,13 +55,13 @@ class Tree {
       this.root = new Node()
     }
   }
-  getRoot() {
-    return this.root
-  }
-  setRoot(node) {
-    this.root = node
-  }
 }
+
+
+
+const transpotionTable = {}
+let cachedTT = 0
+let uncachedTT = 0
 
 class State {
   // board
@@ -90,44 +70,40 @@ class State {
   // winScore
 
   constructor(state) {
-    this.board = new Board(state ? state.board : null)
-    this.playerNo = state ? state.playerNo : null
-    this.visitCount = state ? state.visitCount : 0
-    this.winScore = state ? state.winScore : 0
-  }
-  getWinScore() {
-    return this.winScore
-  }
-  getVisitCount() {
-    return this.visitCount
-  }
-  getBoard() {
-    return this.board
+    if (state !== undefined && typeof state !== 'object' && isNaN(state)) debugger
+
+    if (state) {
+      this.board = new Board(state.board)
+      this.playerNo = state.playerNo
+      const fen = this.board.game.fen()
+      
+      if (transpotionTable[fen]) {
+        cachedTT++
+        this.visitCount = transpotionTable[fen].visitCount
+        this.winScore = transpotionTable[fen].winScore
+      } else {
+        uncachedTT++
+        this.visitCount = 0
+        this.winScore = 0
+        transpotionTable[fen] = this
+      }
+    } else {
+      uncachedTT++
+      this.board = new Board(null)
+      this.playerNo = null
+      this.visitCount = 0
+      this.winScore = 0
+    }
   }
   getOpponent() {
     return 3 - this.playerNo
-  }
-  getPlayerNo() {
-    return this.playerNo
-  }
-  setBoard(board) {
-    this.board = board
-  }
-  setPlayerNo(player) {
-    this.playerNo = player
-  }
-  setWinScore(score) {
-    this.winScore = score
-
   }
   addScore(score) {
     if (this.winScore !== Number.MIN_SAFE_INTEGER) {
       this.winScore += score
     }
   }
-  incrementVisit() {
-    this.visitCount++
-  }
+
   getAllPossibleStates() {
     // constructs a list of all possible states from current state
     const possibleMoves = this.board.getEmptyPositions()
@@ -150,15 +126,13 @@ class State {
   randomPlay() {
     // get a list of all possible positions on the board and play a random move
     let possibleMoves = this.board.getEmptyPositions()
-    let hasCapture = possibleMoves.find(m => m.includes('x'))
+    let decisiveMoves = getDecisiveMoves(possibleMoves)
 
     // Apply move ordering to consider captures frequently
-    if (hasCapture && Math.random() > 0.80) {
-      possibleMoves = possibleMoves.filter(m => m.includes('x') || m.includes('+'))
+    if (decisiveMoves.length > 0 && Math.random() > 0.50) {
+      possibleMoves = decisiveMoves
     }
 
-    if (hasCapture) possibleMoves.filter(m => m.includes('x'))
-    // console.log(possibleMoves)
     const randomMove = possibleMoves[Math.floor((Math.random() * possibleMoves.length))]
     
     this.board.performMove(this.playerNo, randomMove)
@@ -178,20 +152,21 @@ class MonteCarloTreeSearch {
 
     const opponent = 3 - playerNo
     let tree = new Tree()
-    const rootNode = tree.getRoot()
-    rootNode.getState().setBoard(board)
-    rootNode.getState().setPlayerNo(opponent)
+    const rootNode = tree.root
+  
+    rootNode.state.board = board
+    rootNode.state.playerNo = opponent
 
 
     // while ((new Date()).getTime() < end) {
     let count = 0
     while (count < 500) {
       let promisingNode = this.selectPromisingNode(rootNode)
-      if (promisingNode.getState().getBoard().checkStatus() === board.IN_PROGRESS) {
+      if (promisingNode.state.board.checkStatus() === board.IN_PROGRESS) {
         this.expandNode(promisingNode)
       }
       let nodeToExplore = promisingNode
-      if (promisingNode.getChildArray().length > 0) {
+      if (promisingNode.childArray.length > 0) {
         nodeToExplore = promisingNode.getRandomChildNode()
       }
       const playoutResult = this.simulateRandomPlayout(nodeToExplore, opponent, playerNo)
@@ -199,27 +174,33 @@ class MonteCarloTreeSearch {
       count++
     }
     const winnerNode = rootNode.getChildWithMaxScore()
-    tree.setRoot(winnerNode)
-    return winnerNode.getState().getBoard()
+    tree.root = winnerNode
+
+    console.log('cachedTT vs uncached', cachedTT, uncachedTT, cachedTT / (cachedTT + uncachedTT) * 100)
+    return winnerNode.state.board
   }
 
   selectPromisingNode(rootNode) {
+
+    if (!rootNode) return rootNode
     let node = rootNode
 
-    while (node.getChildArray().length !== 0) {
+    while (node.childArray && node.childArray.length !== 0) {
       node = UCTInstance.findBestNodeWithUCT(node)
     }
+    if (!node.state.board) debugger
     return node
   }
 
   // Populates the childArray of node
   expandNode(node) {
-    const possibleStates = node.getState().getAllPossibleStates()
+    const possibleStates = node.state.getAllPossibleStates()
     possibleStates.forEach(state => {
       const newNode = new Node(state)
-      newNode.setParent(node)
-      newNode.getState().setPlayerNo(node.getState().getOpponent())
-      node.getChildArray().push(newNode)
+      newNode.parent = node
+      newNode.state.playerNo = node.state.getOpponent()
+      node.childArray.push(newNode)
+      if (!newNode.state.board) debugger
     })
   }
 
@@ -227,11 +208,11 @@ class MonteCarloTreeSearch {
   backPropogation(nodeToExplore, playerNo) {
     let tempNode = nodeToExplore
     while (tempNode != null) {
-      tempNode.getState().incrementVisit()
-      if (tempNode.getState().getPlayerNo() == playerNo) {
-        tempNode.getState().addScore(10)
+      tempNode.state.visitCount++
+      if (tempNode.state.playerNo == playerNo) {
+        tempNode.state.addScore(10)
       } 
-      tempNode = tempNode.getParent()
+      tempNode = tempNode.parent
     }
   }
 
@@ -239,22 +220,22 @@ class MonteCarloTreeSearch {
   // CheckStatus should also return who's ahead?
   simulateRandomPlayout(node, opponent, playerNo) {
     let tempNode = new Node(node)
-    let tempState = tempNode.getState()
-    let boardStatus = tempState.getBoard().checkStatus()
+    let tempState = tempNode.state
+    let boardStatus = tempState.board.checkStatus()
     if (boardStatus === opponent) {
-      tempNode.getParent().getState().setWinScore(Number.MIN_SAFE_INTEGER)
+      tempNode.parent.state.score = Number.MIN_SAFE_INTEGER
       return boardStatus
     }
     let count = 0
     let moveMade
-    while (boardStatus == tempState.getBoard().IN_PROGRESS && count < 3) {
+    while (boardStatus == tempState.board.IN_PROGRESS && count < 1) {
       tempState.togglePlayer()
       moveMade = tempState.randomPlay()
-      boardStatus = tempState.getBoard().checkStatus()
+      boardStatus = tempState.board.checkStatus()
       count++
     }
-    tempState.getBoard().resolveDynamicExchanges(moveMade)
-    if (boardStatus === -1) boardStatus = tempState.getBoard().getMaterialStatus(playerNo)
+    tempState.board.resolveDynamicExchanges(moveMade)
+    if (boardStatus === -1) boardStatus = tempState.board.getMaterialStatus(playerNo)
     // console.log('boardStatus', boardStatus)
     return boardStatus
   }
@@ -272,15 +253,17 @@ class UCT {
   }
 
   findBestNodeWithUCT(node) {
-    let parentVisit = node.getState().getVisitCount()
+    let parentVisit = node.state.visitCount
     let scoreList = node
-      .getChildArray()
-      .map(c => this.uctValue(parentVisit, c.getState().getWinScore(), c.getState().getVisitCount()))
+      .childArray
+      .map(c => this.uctValue(parentVisit, c.state.winScore, c.state.visitCount))
+      .filter(n => !isNaN(n)) // sometimes the uct is NaN
     
     // room for improvement here
     const maxScore = Math.max(...scoreList)
     const index = scoreList.indexOf(maxScore)
-    return node.getChildArray()[index]
+
+    return node.childArray[index]
   }
 }
 
@@ -346,7 +329,6 @@ let t2222 = performance.now()
 
 
 console.log('time: ', t2222 - t1111)
-
 
 
 let t11111 = performance.now()

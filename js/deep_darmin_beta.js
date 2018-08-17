@@ -79,7 +79,7 @@ class Board {
     // if (isMaterialDifference) {
     // return player2Score > player1Score ? 1 : 2
     // }
-    debugger
+  
     let fen2 = this.game.fen()
     if (fen2.includes(' w ')) fen2 = fen2.replace(" w ", " b ")
     if (fen2.includes(' b ')) fen2 = fen2.replace(" b ", " w ")
@@ -99,18 +99,15 @@ class Board {
 
   getSquare(moveMade) {
     const index = moveMade.split('').findIndex(c => ['1', '2', '3', '4', '5', '6', '7', '8'].includes(c))
-    debugger
+
     return moveMade.slice(index - 1, index + 1)
   }
   resolveDynamicExchanges(moveMade) {
     // const move = this.getSquare(moveMade)
     // console.log(move)
     let count = 0
-    while (count < 6) {
-      const offensiveMoves = getMoves(this.game).filter(m => {
-        const lastChar = moves[moves.length - 1]
-        return m.length > 3 || lastChar === '+' || lastChar === '#'
-      })
+    while (count < 2) {
+      const offensiveMoves = getDecisiveMoves(getMoves(this.game))
       if (offensiveMoves.length === 0) return
 
       const nextMove = offensiveMoves[Math.floor(Math.random() * offensiveMoves.length)]
@@ -119,6 +116,7 @@ class Board {
       count++
     }
   }
+
 
   // Returns all valid moves for this board
   getEmptyPositions() {
@@ -136,6 +134,14 @@ class Board {
     return game.turn() === 'b' ? 2 : 1
   }
 }
+
+function getDecisiveMoves(moves) {
+  return moves.filter(m => {
+    const lastChar = moves[moves.length - 1]
+    return m.length > 3 || lastChar === '+' || lastChar === '#'
+  })
+}
+
 
 const moveCache = {}
 let cached = 0
