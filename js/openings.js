@@ -24,7 +24,7 @@
 // THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Openings book being used is from GarboChess by Gary Linscott: https://github.com/glinscott/Garbochess-JS
-var opening = [
+var openings = [
     "rq2kb1r/p2p1ppp/1pb1pn2/8/2P1P3/P1N5/1PQ1BPPP/R1B1K2R w KQkq -",
     "rnbqr1k1/pp3ppp/3b4/3p4/3Pn3/2NB1N2/PP3PPP/R1BQ1RK1 w - -",
     "rnbqr1k1/pp3pb1/3p1npp/2pP4/4P3/2N1BP2/PP1Q2PP/R3KBNR w KQ -",

@@ -30,13 +30,14 @@ class Node {
   getChildWithMaxScore() {
     let maxScore = Number.MIN_SAFE_INTEGER
     let child
+
     this.childArray.forEach(c => {
       if (c.state.winScore > maxScore) {
         maxScore = c.state.winScore
         child = c
       }
     })
-
+    debugger
     return child
   }
 
@@ -145,7 +146,6 @@ class MonteCarloTreeSearch {
   findNextMove(board, playerNo) {
     // define an end time which will act as a terminating condition
     // const end = (new Date()).getTime() + 100
-    const end = 2
 
     const opponent = 3 - playerNo
     let tree = new Tree()
@@ -157,7 +157,7 @@ class MonteCarloTreeSearch {
 
     // while ((new Date()).getTime() < end) {
     let count = 0
-    while (count < 500) {
+    while (count < 300) {
       let promisingNode = this.selectPromisingNode(rootNode)
       if (promisingNode.state.board.checkStatus() === board.IN_PROGRESS) {
         this.expandNode(promisingNode)
@@ -211,8 +211,14 @@ class MonteCarloTreeSearch {
     }
   }
 
-  // Extend this function to play out only a partial of the game.
-  // CheckStatus should also return who's ahead?
+  // Heavy playout on checks and mates
+  simulateDecisiveMoves(node, opponent, moves) {
+    let tempNode = new Node(node)
+    let tempState = tempNode.state
+
+
+  }
+
   simulateRandomPlayout(node, opponent, playerNo) {
     let tempNode = new Node(node)
     let tempState = tempNode.state
@@ -221,20 +227,27 @@ class MonteCarloTreeSearch {
       tempNode.parent.state.score = Number.MIN_SAFE_INTEGER
       return boardStatus
     }
+    let score = 0
     let count = 0
     let moveMade
-    while (boardStatus == tempState.board.IN_PROGRESS && count < 1) {
+    while (boardStatus == tempState.board.IN_PROGRESS && count < 4) {
       tempState.togglePlayer()
       moveMade = tempState.randomPlay()
       boardStatus = tempState.board.checkStatus()
+      if (boardStatus !== -1) {
+        return boardStatus // Huge time saver for branches that end
+      }
       count++
     }
-    if (boardStatus === -1) {
-      tempState.board.resolveDynamicExchanges(moveMade)
-      boardStatus = tempState.board.evaluateBoard()
+
+    tempState.board.resolveDynamicExchanges(moveMade)
+
+    boardStatus = tempState.board.checkStatus()
+    if (boardStatus !== -1) {
+      return boardStatus
     }
-    // console.log('boardStatus', boardStatus)
-    return tempState.board.checkStatus()
+    return tempState.board.evaluateBoard()
+
   }
 }
 

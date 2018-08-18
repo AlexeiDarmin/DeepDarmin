@@ -19,7 +19,7 @@ Colors:
 const POSITIONS = {
   DEFAULT:        'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
   MATE_IN_ONE:    'r3k1nr/p1pp1ppp/bpnbp3/7q/2PPN3/4PN2/PP1BBPPP/R2Q1RK1 w KQkq - 0 1',
-  MATE_IN_TWO:    'COMING SOON',
+  MATE_IN_TWO:    '2bqkbn1/2pppp2/np2N3/r3P1p1/p2N2B1/5Q2/PPPPKPP1/RNB2r2 w KQkq - 0 1',
   MATE_IN_THREE:  'COMING SOON',
   MATE_THREAT:    '2k2r2/1pp2pp1/2q2n2/2P2bNp/1PBR1B2/Q1K2PP1/2r5/8 w KQ - 0 1',
   ROOK_ONLY:      'rk6/8/8/8/8/8/K7/8 w KQkq - 0 1',
@@ -75,7 +75,10 @@ class Board {
     const turn = this.getPlayerTurn()
 
     // checkmate?
-    if (this.game.in_checkmate() === true) return turn === 'w' ? 2 : 1
+    if (this.game.in_checkmate() === true) {
+      console.log('checkmate considered for', 3 - turn)
+      return 3 - turn
+    }
     // draw?
     else if (game.in_draw() === true) return 0
     // game still on
@@ -89,7 +92,6 @@ class Board {
     let p1PositionScore = 0
     let p2PositionScore = 0
     for (let r = 0; r < 7; ++r) {
-      debugger
       for (let c = 0; c < 7; ++c) {
         if (board[r][c]) { 
           if (board[r][c].type === PieceTypes.Pawn) {
@@ -135,6 +137,8 @@ class Board {
 
   evaluateBoard() {
     const fen = this.game.fen().split(' ')[0]
+
+
 
     let player1Score = 0
     let player2Score = 0
@@ -185,17 +189,18 @@ class Board {
 
     return moveMade.slice(index - 1, index + 1)
   }
+
   resolveDynamicExchanges(moveMade) {
     // const move = this.getSquare(moveMade)
     let count = 0
-    while (count < 1) {
-      debugger
+    while (count < 4) {
       const offensiveMoves = getDecisiveMoves(getMoves(this.game))
       if (offensiveMoves.length === 0) return
 
-      const mateMove = offensiveMoves.find(m => m.slice(-1) === '#')
+      // const mateMove = offensiveMoves.find(m => m.slice(-1) === '#' || m.slice(-1) === '+')
+      const mateMove = -1
       const nextMove = mateMove !== -1 ? mateMove : offensiveMoves[Math.floor(Math.random() * offensiveMoves.length)]
-      if (!nextMove) return
+      if (!nextMove || this.game.board.checkStatus !== -1) return
       this.game.move(nextMove)
       count++
     }
@@ -253,25 +258,43 @@ let nodesVisited = 0
 
 const mcts = new MonteCarloTreeSearch()
 
-let player = 1
+let player = 2
+let botPlayer = 3 - player
+let firstMove = botPlayer
 const makeMove = function () {
 
   console.time('Decision Time')
 
-  const fen = buildValidFen(board, 'b')
+  const fen = buildValidFen(board, botPlayer === 1 ? 'w' : 'b')
   const symGame = new Board(fen)
 
   const moves = symGame.game.moves()
-  let move = moves[0]
-  if (moves.length > 1) {
-    move = mcts.findNextMove(symGame, player)
+
+  // Check opening book
+  let openingMove = null
+  // for (let i = 0; i < moves.length; ++i) {
+  //   console.log('considering: ', moves[i])
+  //   const newSymGame = new Board(fen)
+  //   newSymGame.game.move(moves[i])
+  //   const newFen = newSymGame.game.fen()
+  //   if (openings.includes(newFen)) {
+  //     openingMove = moves[i]
+  //   }
+  // }
+
+  
+
+  let move = moves.find(m => m.slice(-1) === '#') || moves[0]
+  if (!openingMove && !move.includes('#') && moves.length > 1) {
+    move = mcts.findNextMove(symGame, botPlayer)
   } else {
     game.move(move)
     move = new Board(game.fen())
   }
+
+
   console.log('cached / uncached', cached, uncached, cached / uncached * 100 + '%')
   console.timeEnd('Decision Time')
-  // debugger
   game = new Chess(move.game.fen())
   // game.move(move)
   console.log(game.fen())
@@ -304,7 +327,7 @@ var onDrop = function (source, target) {
   // illegal move
   if (move === null) return 'snapback'
 
-  window.setTimeout(makeMove, 75)
+  window.setTimeout(makeMove, 200)
 
   updateStatus()
 }
@@ -361,14 +384,14 @@ var onSnapEnd = function () {
 
 
 let board
-let game = new Chess(POSITIONS.MATE_IN_ONE)
+let game = new Chess(POSITIONS.MATE_IN_TWO)
 let statusEl = $('#status')
 let fenEl = $('#fen')
 let pgnEl = $('#pgn')
 
 var cfg = {
   draggable: true,
-  position: POSITIONS.MATE_IN_ONE,
+  position: POSITIONS.MATE_IN_TWO,
   onDragStart: onDragStart,
   onDrop: onDrop,
   onSnapEnd: onSnapEnd
@@ -377,3 +400,5 @@ var cfg = {
 board = ChessBoard('board', cfg)
 
 updateStatus()
+
+if (firstMove === botPlayer) window.setTimeout(makeMove, 1000)
