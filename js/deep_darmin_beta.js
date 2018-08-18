@@ -28,7 +28,8 @@ const POSITIONS = {
   TRAPPED_BISHOP: 'r1bqkbnr/1ppppppp/p7/2B5/2PPP3/5N2/1R3PPP/1N1QKB1R w KQkq - 0 1',
   TEMP:           'rnb1k1nr/ppppqppp/4p3/2b5/3P4/P7/1P1BPPPP/RN1QKBNR w KQkq - 0 1',
   ADVANCED:       'rnb1k1nr/2pp1ppp/4p3/ppq5/8/P1N1P3/1P1B1PPP/R2QKBNR w KQkq - 0 1',
-  EXCHANGE:       'r1bqkb1r/1pp1npp1/p1np4/4P2p/5P2/P1N2N2/1PP1P1PP/R1BQKB1R w KQkq - 0 2'
+  EXCHANGE:       'r1bqkb1r/1pp1npp1/p1np4/4P2p/5P2/P1N2N2/1PP1P1PP/R1BQKB1R w KQkq - 0 2',
+  WINNING_EXNGE:  'r1bqkb1r/pppp1p1p/2n2np1/4p3/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQkq e6 0 2'
 }
 
 
@@ -98,33 +99,35 @@ class Board {
             if (board[r][c].color === 'w') {
               p1PositionScore += pawnAdj[r*c]
             } else {
-              p2PositionScore += pawnAdj[(7 - r) * (7 - c)]
+              p2PositionScore += blackPawnAdj[r*c]
             }
           } else if (board[r][c].type === PieceTypes.Knight) {
             if (board[r][c].color === 'w') {
               p1PositionScore += knightAdj[r*c]
             } else {
-              p2PositionScore += knightAdj[(7 - r) * (7 - c)]
+              p2PositionScore += blackKnightAdj[r*c]
             }
           } else if (board[r][c].type === PieceTypes.Bishop) {
             if (board[r][c].color === 'w') {
               p1PositionScore += bishopAdj[r*c]
             } else {
-              p2PositionScore += bishopAdj[(7 - r) * (7 - c)]
+              p2PositionScore += blackBishopAdj[r*c]
             }
           } else if (board[r][c].type === PieceTypes.Rook) {
             if (board[r][c].color === 'w') {
               p1PositionScore += rookAdj[r*c]
             } else {
-              p2PositionScore += rookAdj[(7 - r) * (7 - c)]
+              p2PositionScore += blackRookAdj[r*c]
             }
-          } else if (board[r][c].type === PieceTypes.King) {
-            if (board[r][c].color === 'w') {
-              p1PositionScore += kingAdj[r*c]
-            } else {
-              p2PositionScore += kingAdj[(7 - r) * (7 - c)]
-            }
-          }
+          } 
+          // this needs to be conditional to what stage the game is in
+          // else if (board[r][c].type === PieceTypes.King) {
+          //   if (board[r][c].color === 'w') {
+          //     p1PositionScore += kingAdj[r*c]
+          //   } else {
+          //     p2PositionScore += kingAdj[(7 - r) * (7 - c)]
+          //   }
+          // }
         }
       }
     }
@@ -172,16 +175,17 @@ class Board {
 
     // console.log('p1, p2', player1Moves.length, player2Moves.length)
     // Value mobility
-    player1Score += player1Moves.length * 10
-    player2Score += player2Moves.length * 10
+    player1Score += player1Moves.length * 5
+    player2Score += player2Moves.length * 5
     
     const { p1PositionScore, p2PositionScore } = this.evaluatePosition()
 
     player1Score += p1PositionScore
     player2Score += p2PositionScore
 
-    return player2Score > player1Score ? 1 : 2
-    // return player2Moves > player1Moves ? 1 : 2
+    // return player2Score > player1Score ? 2 : 1
+    // console.log('delta looked at', player2Score - player1Score)
+    return player2Score - player1Score - 50 // 50 value for tempo
   }
 
   getSquare(moveMade) {
@@ -258,9 +262,9 @@ let nodesVisited = 0
 
 const mcts = new MonteCarloTreeSearch()
 
-let player = 2
+let player = 1
 let botPlayer = 3 - player
-let firstMove = botPlayer
+let firstMove = player
 const makeMove = function () {
 
   console.time('Decision Time')
@@ -384,14 +388,14 @@ var onSnapEnd = function () {
 
 
 let board
-let game = new Chess(POSITIONS.MATE_IN_TWO)
+let game = new Chess(POSITIONS.DEFAULT)
 let statusEl = $('#status')
 let fenEl = $('#fen')
 let pgnEl = $('#pgn')
 
 var cfg = {
   draggable: true,
-  position: POSITIONS.MATE_IN_TWO,
+  position: POSITIONS.DEFAULT,
   onDragStart: onDragStart,
   onDrop: onDrop,
   onSnapEnd: onSnapEnd

@@ -93,3 +93,10 @@ var emptyAdj =
         0, 0, 0, 0, 0, 0, 0, 0, 
         0, 0, 0, 0, 0, 0, 0, 0, 
      ];
+
+
+var blackPawnAdj = pawnAdj.reverse()
+var blackKnightAdj = knightAdj.reverse()
+var blackBishopAdj = bishopAdj.reverse()
+var blackRookAdj = rookAdj.reverse()
+var blackKingAdj = kingAdj.reverse()

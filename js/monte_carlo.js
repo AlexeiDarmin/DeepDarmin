@@ -142,6 +142,9 @@ class State {
   }
 }
 
+
+let boardEvalDelta = 0
+
 class MonteCarloTreeSearch {
   findNextMove(board, playerNo) {
     // define an end time which will act as a terminating condition
@@ -153,7 +156,8 @@ class MonteCarloTreeSearch {
 
     rootNode.state.board = board
     rootNode.state.playerNo = opponent
-
+    boardEvalDelta = rootNode.state.board.evaluateBoard()
+    console.log('boardEvalDelta:', boardEvalDelta)
 
     // while ((new Date()).getTime() < end) {
     let count = 0
@@ -246,8 +250,7 @@ class MonteCarloTreeSearch {
     if (boardStatus !== -1) {
       return boardStatus
     }
-    return tempState.board.evaluateBoard()
-
+    return tempState.board.evaluateBoard() > boardEvalDelta ? 2 : 1
   }
 }
 
