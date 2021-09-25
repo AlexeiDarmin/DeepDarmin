@@ -33,7 +33,7 @@ function App() {
   return (
     <div className="App">
       <header className="App-header" onClick={makeRandomMove}>
-          Make Random Move
+          Make AI Move
       </header>
     </div>
   );
