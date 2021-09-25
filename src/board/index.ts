@@ -1,4 +1,4 @@
-import { Chess } from "chess.ts"
+import { Chess, Move, Piece } from "chess.ts"
 
 enum Orientation {
     white = "white",
@@ -8,12 +8,14 @@ enum Orientation {
 class Board {
     game: Chess
     board: any
+    moveCallback
 
-    constructor(game: Chess) {
+    constructor(game: Chess, moveCallback: (move: Move) => void) {
         if (!game) {
             throw Error("no game found to attach board to")
         }
         this.game = game;
+        this.moveCallback = moveCallback
     }
 
     /**
@@ -40,25 +42,30 @@ class Board {
         console.log('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
     }
 
+    /**
+     * Bounces moves that are invalid for the current board state
+     */
     onDrop = (source: string, target: string, piece: string, newPos: string, oldPos: string, orientation: Orientation) => {
-        // checks to see if move is legal
-        var move = this.game.move({
-            from: source,
-            to: target,
-             // Always promotes piece to a Queen for simplicity
-            promotion: 'q'
-        })
+      // checks to see if move is legal
+      const move = this.game.move({
+        from: source,
+        to: target,
+        // Always promotes piece to a Queen for simplicity
+        promotion: 'q'
+      })
 
-        if (move === null) {
-            return 'snapback'
-        }
-      }    
+      if (move === null) {
+        return 'snapback'
+      }
+      
+      this.moveCallback(move)
+    }  
 }
 
 
 
-export default function createBoardConfig (game: Chess) {
-    const board = new Board(game)
+const createBoardConfig = (game: Chess, moveCallback: (move: Move) => void) => {
+    const board = new Board(game, moveCallback)
 
     return {
         board, 
@@ -71,4 +78,7 @@ export default function createBoardConfig (game: Chess) {
             position: 'start'
         }
     }
-}
+};
+
+
+export default createBoardConfig;

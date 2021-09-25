@@ -3,27 +3,23 @@ import './App.css';
 
 import { Chess } from 'chess.ts'
 import createBoardConfig from './board';
+import Engine from './engine';
 
 const BOARD_ID = "CHESS_BOARD"
 
 function App() {
   const [game] = useState(new Chess())
-
-  // const [board, setBoard] = useState(null)
+  const [engine] = useState(new Engine(game))
   const [thirdPartyBoard, setThirdPartyBoard] = useState<any>(null)
 
-
   const makeRandomMove = () => {
-    const moves = game.moves()
-    const move = moves[Math.floor(Math.random() * moves.length)]
-    game.move(move)
-    console.log("MAKE MOVE: ", move)
-    
-    thirdPartyBoard.position(game.fen())
+    engine.makeMove()
+    const fen = game.fen()
+    thirdPartyBoard.position(fen)
   }
 
   useEffect(() => {
-    const { board: boardClass, config } = createBoardConfig(game)
+    const { board: boardClass, config } = createBoardConfig(game, engine.handleMoveMade)
     // @ts-expect-error
     const thirdPartyBoard = Chessboard(BOARD_ID, config)
 
